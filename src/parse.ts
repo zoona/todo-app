@@ -1,13 +1,4 @@
-import {
-  CATEGORIES,
-  HIGH,
-  LOW,
-  PRIORITY_RANK,
-  UNSORTED,
-  type Category,
-  type Priority,
-  type Todo,
-} from "./types";
+import { HIGH, LOW, PRIORITY_RANK, UNSORTED, type Priority, type Todo } from "./types";
 
 const DUE_PREFIX = "마감:";
 const ORIGIN_PREFIX = "출처:";
@@ -59,8 +50,9 @@ export function withProject(body: string, project: string | null): string {
   return withField(body, PROJECT_PREFIX, project);
 }
 
-export function categoryOf(labels: string[]): Category | typeof UNSORTED {
-  return CATEGORIES.find((c) => labels.includes(c)) ?? UNSORTED;
+/** 설정의 카테고리 순서대로 첫 매칭. 카테고리 목록은 설정 이슈가 정본이다. */
+export function categoryOf(labels: string[], categories: string[]): string {
+  return categories.find((c) => labels.includes(c)) ?? UNSORTED;
 }
 
 export function priorityOf(labels: string[]): Priority {
@@ -79,13 +71,13 @@ export type RawIssue = {
   pull_request?: unknown;
 };
 
-export function toTodo(issue: RawIssue): Todo {
+export function toTodo(issue: RawIssue, categories: string[]): Todo {
   const labels = issue.labels.map((l) => (typeof l === "string" ? l : l.name));
   return {
     number: issue.number,
     title: issue.title,
     url: issue.html_url,
-    category: categoryOf(labels),
+    category: categoryOf(labels, categories),
     priority: priorityOf(labels),
     project: parseProject(issue.body),
     inProgress: labels.includes("진행중"),

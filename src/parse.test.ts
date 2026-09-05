@@ -99,10 +99,14 @@ describe("withProject", () => {
   });
 });
 
+const CATS = ["업무", "개인", "학습", "아이디어"];
+
 describe("categoryOf / priorityOf", () => {
-  it("카테고리 라벨을 고른다", () => {
-    expect(categoryOf(["개인", "진행중"])).toBe("개인");
-    expect(categoryOf([])).toBe("미분류");
+  it("설정 순서대로 첫 카테고리를 고른다", () => {
+    expect(categoryOf(["개인", "진행중"], CATS)).toBe("개인");
+    expect(categoryOf(["학습", "업무"], CATS)).toBe("업무");
+    expect(categoryOf([], CATS)).toBe("미분류");
+    expect(categoryOf(["없는라벨"], CATS)).toBe("미분류");
   });
 
   it("우선순위는 라벨이 없으면 보통", () => {
@@ -120,7 +124,7 @@ describe("toTodo", () => {
       html_url: "https://github.com/zoona/todo/issues/5",
       body: "출처: iPhone\n프로젝트: ace\n마감: 2026-09-10 14:00",
       labels: [{ name: "개인" }, { name: "진행중" }, { name: "높음" }],
-    });
+    }, CATS);
     expect(todo).toMatchObject({
       number: 5,
       category: "개인",

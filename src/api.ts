@@ -6,7 +6,8 @@ import {
   upsert,
   type PushSubscriptionRecord,
 } from "./push";
-import { SYSTEM_LABEL, UNSORTED, type HubFile, type Priority, type Todo } from "./types";
+import { DEFAULT_CONFIG, parseConfig, renderConfig, type AppConfig } from "./config";
+import { SYSTEM_LABELS, UNSORTED, type HubFile, type Priority, type Todo } from "./types";
 
 const REPO = "zoona/todo";
 const API = "https://api.github.com";
@@ -67,7 +68,13 @@ function labelNames(issue: RawIssue): string[] {
   return issue.labels.map((l) => (typeof l === "string" ? l : l.name));
 }
 
-export async function fetchTodos(): Promise<Todo[]> {
+function isSystem(issue: RawIssue): boolean {
+  const names = labelNames(issue);
+  return SYSTEM_LABELS.some((l) => names.includes(l));
+}
+
+/** 열린 이슈 전부와 설정을 한 번에. 설정 이슈도 이 목록에 있어서 호출을 아낀다. */
+export async function fetchTodosAndConfig(): Promise<{ todos: Todo[]; config: AppConfig }> {
   // repo가 안 보이는 404는 토큰이 그 repo를 못 보는 것이다. 여기서만 인증 오류로 올린다.
   const res = await call(`/repos/${REPO}/issues?state=open&per_page=100`).catch((err) => {
     if (err instanceof ApiError && err.status === 404) {
@@ -76,14 +83,12 @@ export async function fetchTodos(): Promise<Todo[]> {
     throw err;
   });
   const raw = (await res.json()) as RawIssue[];
-  return raw
-    .filter(
-      (i) =>
-        !i.pull_request &&
-        !labelNames(i).includes(SYSTEM_LABEL) &&
-        !labelNames(i).includes(PUSH_LABEL),
-    )
-    .map(toTodo);
+  const configIssue = raw.find((i) => labelNames(i).includes(CONFIG_LABEL));
+  const config = parseConfig(configIssue?.body) ?? DEFAULT_CONFIG;
+  const todos = raw
+    .filter((i) => !i.pull_request && !isSystem(i))
+    .map((i) => toTodo(i, config.categories));
+  return { todos, config };
 }
 
 export async function createTodo(input: {
@@ -115,6 +120,18 @@ export async function setPriority(todo: Todo, priority: Priority): Promise<void>
   });
 }
 
+export async function setCategoryLabel(todo: Todo, category: string | null): Promise<void> {
+  const keep = [
+    todo.inProgress ? "진행중" : null,
+    todo.priority === "보통" ? null : todo.priority,
+  ];
+  const labels = [category, ...keep].filter((x): x is string => !!x);
+  await call(`/repos/${REPO}/issues/${todo.number}/labels`, {
+    method: "PUT",
+    body: JSON.stringify({ labels }),
+  });
+}
+
 export async function closeTodo(number: number): Promise<void> {
   await call(`/repos/${REPO}/issues/${number}`, {
     method: "PATCH",
@@ -137,6 +154,66 @@ export async function setCategory(number: number, category: string): Promise<voi
 }
 
 const PUSH_LABEL = "push";
+const CONFIG_LABEL = "config";
+
+/** 설정을 담아둔 이슈. 없으면 기본값으로 만든다. */
+async function configIssue(): Promise<{ number: number; body: string }> {
+  const res = await call(
+    `/repos/${REPO}/issues?state=open&labels=${CONFIG_LABEL}&per_page=1`,
+  );
+  const found = (await res.json()) as RawIssue[];
+  if (found.length) return { number: found[0].number, body: found[0].body ?? "" };
+  const created = await call(`/repos/${REPO}/issues`, {
+    method: "POST",
+    body: JSON.stringify({
+      title: "앱 설정",
+      labels: [CONFIG_LABEL],
+      body: renderConfig(DEFAULT_CONFIG),
+    }),
+  });
+  const issue = (await created.json()) as RawIssue;
+  return { number: issue.number, body: issue.body ?? "" };
+}
+
+export async function saveConfig(config: AppConfig): Promise<void> {
+  const issue = await configIssue();
+  await call(`/repos/${REPO}/issues/${issue.number}`, {
+    method: "PATCH",
+    body: JSON.stringify({ body: renderConfig(config) }),
+  });
+}
+
+// 카테고리의 실체는 repo 라벨이다. 만들고 바꾸고 지우는 건 라벨 API로,
+// 어떤 라벨이 카테고리이고 어떤 순서인지는 설정 이슈로.
+const LABEL_COLORS = ["1D76DB", "0E8A16", "5319E7", "FBCA04", "D93F0B", "006B75", "B60205"];
+
+export async function createCategoryLabel(name: string): Promise<void> {
+  const color = LABEL_COLORS[Math.abs([...name].reduce((a, c) => a + c.charCodeAt(0), 0)) % LABEL_COLORS.length];
+  await call(`/repos/${REPO}/labels`, {
+    method: "POST",
+    body: JSON.stringify({ name, color }),
+  });
+}
+
+export async function renameCategoryLabel(from: string, to: string): Promise<void> {
+  await call(`/repos/${REPO}/labels/${encodeURIComponent(from)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ new_name: to }),
+  });
+}
+
+/** 라벨을 지우면 붙어 있던 이슈들은 미분류가 된다. */
+export async function deleteCategoryLabel(name: string): Promise<void> {
+  await call(`/repos/${REPO}/labels/${encodeURIComponent(name)}`, { method: "DELETE" });
+}
+
+/** 행에서 프로젝트 연결을 바꾼다. null이면 해제. */
+export async function setProject(todo: Todo, project: string | null): Promise<void> {
+  await call(`/repos/${REPO}/issues/${todo.number}`, {
+    method: "PATCH",
+    body: JSON.stringify({ body: withProject(todo.body, project) }),
+  });
+}
 
 /** 구독을 담아둔 이슈. 없으면 만든다. */
 async function pushIssue(): Promise<{ number: number; body: string }> {

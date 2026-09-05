@@ -1,24 +1,33 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AuthError,
   clearToken,
   closeTodo,
+  createCategoryLabel,
   createTodo,
+  deleteCategoryLabel,
   fetchHub,
-  fetchTodos,
+  fetchTodosAndConfig,
   getToken,
+  renameCategoryLabel,
+  saveConfig,
   setPriority,
+  setProject,
   setToken,
 } from "./api";
+import {
+  addCategory,
+  DEFAULT_CONFIG,
+  moveCategory,
+  orderIndex,
+  removeCategory,
+  renameCategory,
+  withOrder,
+  type AppConfig,
+} from "./config";
 import { compareTodos, dueState, todayInSeoul } from "./parse";
 import { readOrigin, since } from "./devices";
-import {
-  CATEGORIES,
-  UNSORTED,
-  type HubFile,
-  type Priority,
-  type Todo,
-} from "./types";
+import { UNSORTED, type HubFile, type Priority, type Todo } from "./types";
 import {
   cleanCallbackUrl,
   consumeState,
@@ -30,11 +39,10 @@ import {
 import { NotifyToggle } from "./NotifyToggle";
 import "./App.css";
 
-const SECTIONS = [...CATEGORIES, UNSORTED];
-
 export default function App() {
   const [authed, setAuthed] = useState(!!getToken());
   const [todos, setTodos] = useState<Todo[]>([]);
+  const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG);
   const [hub, setHub] = useState<HubFile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -46,21 +54,25 @@ export default function App() {
     setLoading(true);
     setError(null);
     try {
-      const [list, hubFile] = await Promise.all([fetchTodos(), fetchHub()]);
+      const [{ todos: list, config: cfg }, hubFile] = await Promise.all([
+        fetchTodosAndConfig(),
+        fetchHub(),
+      ]);
       setTodos(list);
+      setConfig(cfg);
       setHub(hubFile);
-      localStorage.setItem("todo.cache", JSON.stringify({ list, hubFile }));
+      localStorage.setItem("todo.cache", JSON.stringify({ list, cfg, hubFile }));
     } catch (err) {
       if (err instanceof AuthError) {
-        // 토큰을 지우지 않는다. 권한만 고치면 되는 경우가 많은데,
-        // 지워버리면 GitHub가 값을 한 번만 보여주므로 재발급까지 가게 된다.
+        // 토큰을 지우지 않는다. 권한만 고치면 되는 경우가 많다.
         setError(err.message);
       } else {
         setError(err instanceof Error ? err.message : String(err));
         const cached = localStorage.getItem("todo.cache");
         if (cached) {
-          const { list, hubFile } = JSON.parse(cached);
+          const { list, cfg, hubFile } = JSON.parse(cached);
           setTodos(list);
+          if (cfg) setConfig(cfg);
           setHub(hubFile);
         }
       }
@@ -90,10 +102,28 @@ export default function App() {
     if (authed) void load();
   }, [authed, load]);
 
+  const sections = [...config.categories, UNSORTED];
+
   const sorted = useMemo(
     () => [...todos].sort((a, b) => compareTodos(a, b, today)),
     [todos, today],
   );
+
+  /** 카테고리 안에서는 수동 순서가 우선, 순서에 없는 항목은 기본 정렬로 뒤에. */
+  const rowsOf = useCallback(
+    (name: string) =>
+      sorted
+        .filter((t) => t.category === name)
+        .sort((a, b) => orderIndex(config, name, a.number) - orderIndex(config, name, b.number)),
+    [sorted, config],
+  );
+
+  /** 드래그 결과 반영 — 화면 먼저 바꾸고 저장은 뒤에서. */
+  async function reorder(category: string, numbers: number[]) {
+    const next = withOrder(config, category, numbers);
+    setConfig(next);
+    await saveConfig(next);
+  }
 
   if (!authed) {
     return <TokenGate onSaved={() => setAuthed(true)} error={error} />;
@@ -116,44 +146,44 @@ export default function App() {
       {error && (
         <div className="error-box">
           <p className="error">{error}</p>
-          <p className="hint">
-            권한을 고쳤다면 새로고침만 하면 됩니다. 토큰 값은 그대로입니다.
-          </p>
         </div>
       )}
 
       <div className="layout">
         <div className="col-todos">
-          <AddForm today={today} hub={hub} onAdded={() => void load()} />
+          <AddForm today={today} hub={hub} categories={config.categories} onAdded={() => void load()} />
 
           {urgent.length > 0 && (
             <section className="urgent">
               <h2>지금 볼 것</h2>
               {urgent.map((t) => (
-                <Row key={t.number} todo={t} today={today} onChanged={() => void load()} />
+                <Row key={t.number} todo={t} today={today} hub={hub} onChanged={() => void load()} />
               ))}
             </section>
           )}
 
-          {SECTIONS.map((name) => {
-            const rows = sorted.filter((t) => t.category === name);
+          {sections.map((name) => {
+            const rows = rowsOf(name);
             if (!rows.length) return null;
             return (
-              <section key={name}>
-                <h2>
-                  {name} <span className="count">{rows.length}</span>
-                </h2>
-                {rows.map((t) => (
-                  <Row key={t.number} todo={t} today={today} onChanged={() => void load()} />
-                ))}
-              </section>
+              <Section
+                key={name}
+                name={name}
+                rows={rows}
+                today={today}
+                hub={hub}
+                onChanged={() => void load()}
+                onReorder={(numbers) => void reorder(name, numbers)}
+              />
             );
           })}
+
+          <CategoryManager config={config} onChanged={(cfg) => { setConfig(cfg); void load(); }} />
         </div>
 
         {hub && hub.projects.length > 0 && (
           <aside className="col-hub">
-            <HubSection hub={hub} wide={wide} />
+            <HubSection hub={hub} wide={wide} todos={todos} />
           </aside>
         )}
       </div>
@@ -167,10 +197,58 @@ export default function App() {
             setAuthed(false);
           }}
         >
-          토큰 지우기
+          로그아웃
         </button>
       </footer>
     </div>
+  );
+}
+
+/** 카테고리 한 섹션. 행을 끌어다 놓으면 순서가 저장된다(데스크톱). */
+function Section({
+  name,
+  rows,
+  today,
+  hub,
+  onChanged,
+  onReorder,
+}: {
+  name: string;
+  rows: Todo[];
+  today: string;
+  hub: HubFile | null;
+  onChanged: () => void;
+  onReorder: (numbers: number[]) => void;
+}) {
+  const dragging = useRef<number | null>(null);
+
+  function dropOn(target: number) {
+    const from = dragging.current;
+    dragging.current = null;
+    if (from === null || from === target) return;
+    // 끌던 것을 빼고, 놓은 자리(대상 항목 위치)에 끼운다
+    const numbers = rows.map((t) => t.number).filter((n) => n !== from);
+    numbers.splice(numbers.indexOf(target), 0, from);
+    onReorder(numbers);
+  }
+
+  return (
+    <section>
+      <h2>
+        {name} <span className="count">{rows.length}</span>
+      </h2>
+      {rows.map((t) => (
+        <div
+          key={t.number}
+          draggable
+          onDragStart={() => (dragging.current = t.number)}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={() => dropOn(t.number)}
+        >
+          <Row todo={t} today={today} hub={hub} onChanged={onChanged} />
+        </div>
+      ))}
+    </section>
   );
 }
 
@@ -226,21 +304,24 @@ function TokenGate({ onSaved, error }: { onSaved: () => void; error: string | nu
 function AddForm({
   today,
   hub,
+  categories,
   onAdded,
 }: {
   today: string;
   hub: HubFile | null;
+  categories: string[];
   onAdded: () => void;
 }) {
   const [title, setTitle] = useState("");
-  const [category, setCategory] = useState<string>("개인");
+  const [category, setCategory] = useState<string | null>(null);
   const [priority, setPriorityValue] = useState<Priority>("보통");
-  const [project, setProject] = useState("");
+  const [project, setProjectValue] = useState("");
   const [due, setDue] = useState("");
   const [withTime, setWithTime] = useState(false);
   const [more, setMore] = useState(false);
   const [busy, setBusy] = useState(false);
   const open = title.trim().length > 0;
+  const chosen = category ?? categories[0] ?? null;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -249,14 +330,14 @@ function AddForm({
     try {
       await createTodo({
         title: title.trim(),
-        category,
+        category: chosen,
         priority,
         project: project || null,
         due: due ? due.replace("T", " ") : null,
       });
       setTitle("");
       setDue("");
-      setProject("");
+      setProjectValue("");
       setPriorityValue("보통");
       setMore(false);
       onAdded();
@@ -277,11 +358,11 @@ function AddForm({
       {/* 아무것도 안 친 상태에서는 입력 한 줄만 둔다. 목록이 주인공이다. */}
       {open && (
         <div className="chips">
-          {CATEGORIES.map((c) => (
+          {categories.map((c) => (
             <button
               key={c}
               type="button"
-              className={category === c ? "chip on" : "chip"}
+              className={chosen === c ? "chip on" : "chip"}
               onClick={() => setCategory(c)}
             >
               {c}
@@ -313,7 +394,7 @@ function AddForm({
             ))}
           </div>
 
-          <select value={project} onChange={(e) => setProject(e.target.value)}>
+          <select value={project} onChange={(e) => setProjectValue(e.target.value)}>
             <option value="">프로젝트 없음</option>
             {hub?.projects.map((p) => (
               <option key={p.slug} value={p.slug}>
@@ -355,15 +436,19 @@ function AddForm({
 function Row({
   todo,
   today,
+  hub,
   onChanged,
 }: {
   todo: Todo;
   today: string;
+  hub: HubFile | null;
   onChanged: () => void;
 }) {
   const [busy, setBusy] = useState(false);
+  const [linking, setLinking] = useState(false);
   const state = dueState(todo.due, today);
   const origin = readOrigin(todo.origin);
+  const projectTitle = hub?.projects.find((p) => p.slug === todo.project)?.title;
 
   async function run(fn: () => Promise<void>) {
     setBusy(true);
@@ -379,7 +464,7 @@ function Row({
     todo.priority === "보통" ? "높음" : todo.priority === "높음" ? "낮음" : "보통";
 
   return (
-    <div className={busy ? "row busy" : "row"}>
+    <div className={`row${busy ? " busy" : ""}${todo.project ? " linked" : ""}`}>
       <button
         className="check"
         onClick={() => void run(() => closeTodo(todo.number))}
@@ -400,16 +485,35 @@ function Row({
           >
             {todo.priority === "보통" ? "·" : todo.priority}
           </button>
-          {todo.project && (
-            <a
-              className="tag"
-              href={hubUrl(todo.project)}
-              target="_blank"
-              rel="noreferrer"
+
+          {/* 프로젝트 연결 — 누르면 바꾸거나 해제. 할 일 일부만 프로젝트에 붙는다. */}
+          {linking ? (
+            <select
+              autoFocus
+              value={todo.project ?? ""}
+              onChange={(e) => {
+                setLinking(false);
+                void run(() => setProject(todo, e.target.value || null));
+              }}
+              onBlur={() => setLinking(false)}
             >
-              {todo.project}
-            </a>
+              <option value="">연결 없음</option>
+              {hub?.projects.map((p) => (
+                <option key={p.slug} value={p.slug}>
+                  {p.title}
+                </option>
+              ))}
+            </select>
+          ) : todo.project ? (
+            <button className="tag project" disabled={busy} onClick={() => setLinking(true)}>
+              {projectTitle ?? todo.project}
+            </button>
+          ) : (
+            <button className="tag link-add" disabled={busy} onClick={() => setLinking(true)}>
+              + 프로젝트
+            </button>
           )}
+
           {todo.inProgress && <span className="tag">진행중</span>}
           {state && <span className={`due ${state}`}>{dueLabel(todo.due!, state)}</span>}
           {origin &&
@@ -434,9 +538,98 @@ function dueLabel(due: string, state: NonNullable<ReturnType<typeof dueState>>) 
   return due;
 }
 
+/** 카테고리 추가, 이름 바꾸기, 삭제, 순서. 실체는 repo 라벨이고 목록·순서는 설정 이슈. */
+function CategoryManager({
+  config,
+  onChanged,
+}: {
+  config: AppConfig;
+  onChanged: (cfg: AppConfig) => void;
+}) {
+  const [adding, setAdding] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function run(fn: () => Promise<AppConfig>) {
+    setBusy(true);
+    try {
+      const next = await fn();
+      await saveConfig(next);
+      onChanged(next);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <details className="cat-manage">
+      <summary>카테고리 관리</summary>
+      <ul>
+        {config.categories.map((c) => (
+          <li key={c}>
+            <span>{c}</span>
+            <span className="cat-buttons">
+              <button className="ghost" disabled={busy} onClick={() => void run(async () => moveCategory(config, c, -1))}>↑</button>
+              <button className="ghost" disabled={busy} onClick={() => void run(async () => moveCategory(config, c, 1))}>↓</button>
+              <button
+                className="ghost"
+                disabled={busy}
+                onClick={() => {
+                  const to = prompt(`"${c}"의 새 이름`, c)?.trim();
+                  if (!to || to === c) return;
+                  void run(async () => {
+                    await renameCategoryLabel(c, to);
+                    return renameCategory(config, c, to);
+                  });
+                }}
+              >
+                이름
+              </button>
+              <button
+                className="ghost danger"
+                disabled={busy}
+                onClick={() => {
+                  if (!confirm(`"${c}"를 지웁니다. 붙어 있던 할 일은 미분류가 됩니다.`)) return;
+                  void run(async () => {
+                    await deleteCategoryLabel(c);
+                    return removeCategory(config, c);
+                  });
+                }}
+              >
+                삭제
+              </button>
+            </span>
+          </li>
+        ))}
+      </ul>
+      <div className="cat-add">
+        <input
+          value={adding}
+          placeholder="새 카테고리"
+          onChange={(e) => setAdding(e.target.value)}
+        />
+        <button
+          className="ghost"
+          disabled={busy || !adding.trim()}
+          onClick={() => {
+            const name = adding.trim();
+            setAdding("");
+            void run(async () => {
+              await createCategoryLabel(name);
+              return addCategory(config, name);
+            });
+          }}
+        >
+          추가
+        </button>
+      </div>
+    </details>
+  );
+}
+
 const DAY = 86400000;
 
-/** HUB 원문은 마크다운이라 강조 기호가 평문 렌더에서 날것으로 보인다. 벗겨낸다. */
 function tidy(text: string): string {
   return text.replace(/\*\*/g, "").replace(/`/g, "").replace(/·/g, ", ");
 }
@@ -455,53 +648,56 @@ function staleLabel(days: number): string {
   return `${Math.floor(days / 7)}주 방치`;
 }
 
-function HubSection({ hub, wide }: { hub: HubFile; wide: boolean }) {
+function HubSection({ hub, wide, todos }: { hub: HubFile; wide: boolean; todos: Todo[] }) {
   // 정리 판단용 신호: 프로젝트마다 가장 오래 방치된 항목 기준으로 요약에도 띄운다
   const staleOf = (p: HubFile["projects"][number]) =>
     Math.max(0, ...p.items.map((i) => ageDays(i.date)));
+  // 실행 줄로 끌어온 것이 있는 프로젝트 — 백로그와 실행의 연결이 여기서 보인다
+  const pulled = (slug: string) => todos.filter((t) => t.project === slug).length;
 
   return (
     <section className="hub">
       <h2>프로젝트 백로그</h2>
       {hub.projects.map((p) => {
         const stale = staleOf(p);
+        const active = pulled(p.slug);
         return (
-        <details key={p.slug} open={wide}>
-          <summary>
-            {tidy(p.title)} <span className="count">{p.items.length}</span>
-            {stale >= 21 && <span className="age stale">{staleLabel(stale)}</span>}
-            <a
-              className="hub-open"
-              href={hubUrl(p.slug)}
-              target="_blank"
-              rel="noreferrer"
-              aria-label="HUB 문서 열기"
-              onClick={(e) => e.stopPropagation()}
-            >
-              ↗
-            </a>
-          </summary>
-          <ul>
-            {p.items.map((item, i) => {
-              const days = ageDays(item.date);
-              return (
-                // 모바일에서는 두 줄로 접고 누르면 펼친다. 항목이 문단 길이인 게 많다.
-                // (재렌더 시 접힘으로 돌아가는 건 감수 — 상태 배열보다 싸다)
-                <li
-                  key={i}
-                  className="hub-item"
-                  style={{ marginLeft: item.depth * 12 }}
-                  onClick={(e) => e.currentTarget.classList.toggle("expanded")}
-                >
-                  {tidy(item.text)}
-                  {days >= 7 && (
-                    <span className={days >= 21 ? "age stale" : "age"}>{since(item.date!)}</span>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </details>
+          <details key={p.slug} open={wide}>
+            <summary>
+              {tidy(p.title)} <span className="count">{p.items.length}</span>
+              {active > 0 && <span className="pulled">실행 {active}</span>}
+              {stale >= 21 && <span className="age stale">{staleLabel(stale)}</span>}
+              <a
+                className="hub-open"
+                href={hubUrl(p.slug)}
+                target="_blank"
+                rel="noreferrer"
+                aria-label="HUB 문서 열기"
+                onClick={(e) => e.stopPropagation()}
+              >
+                ↗
+              </a>
+            </summary>
+            <ul>
+              {p.items.map((item, i) => {
+                const days = ageDays(item.date);
+                return (
+                  // 모바일에서는 두 줄로 접고 누르면 펼친다. 항목이 문단 길이인 게 많다.
+                  <li
+                    key={i}
+                    className="hub-item"
+                    style={{ marginLeft: item.depth * 12 }}
+                    onClick={(e) => e.currentTarget.classList.toggle("expanded")}
+                  >
+                    {tidy(item.text)}
+                    {days >= 7 && (
+                      <span className={days >= 21 ? "age stale" : "age"}>{since(item.date!)}</span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </details>
         );
       })}
       <p className="stamp">

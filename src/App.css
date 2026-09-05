@@ -471,3 +471,110 @@ a.tag {
 .manual-token input {
   margin-bottom: 8px;
 }
+
+/* 프로젝트에 연결된 행 — 왼쪽 띠로 구분 */
+.row.linked {
+  border-left: 3px solid var(--accent);
+}
+
+.tag.project {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+
+.tag.link-add {
+  background: transparent;
+  border-style: dashed;
+  color: var(--dim);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.row:hover .tag.link-add,
+.row:focus-within .tag.link-add {
+  opacity: 1;
+}
+
+/* 모바일은 hover가 없으니 항상 보이게 */
+@media (max-width: 979px) {
+  .tag.link-add {
+    opacity: 0.6;
+  }
+}
+
+.meta select {
+  font-size: 12px;
+  padding: 2px 6px;
+  width: auto;
+}
+
+/* 백로그에서 실행 줄로 끌어온 게 있는 프로젝트 표시 */
+.pulled {
+  font-size: 11px;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 0 6px;
+  white-space: nowrap;
+}
+
+/* 카테고리 관리 */
+.cat-manage {
+  margin-top: 24px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.cat-manage summary {
+  cursor: pointer;
+  color: var(--dim);
+  font-size: 14px;
+}
+
+.cat-manage ul {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0;
+}
+
+.cat-manage li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.cat-buttons button {
+  padding: 2px 8px;
+  font-size: 13px;
+}
+
+.cat-buttons .danger {
+  color: var(--red);
+}
+
+.cat-add {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.cat-add input {
+  flex: 1;
+  padding: 6px 10px;
+}
+
+/* 드래그 중 시각 피드백 */
+.col-todos [draggable="true"] {
+  cursor: grab;
+}
