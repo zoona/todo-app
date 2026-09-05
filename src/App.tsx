@@ -6,10 +6,12 @@ import {
   createCategoryLabel,
   createTodo,
   deleteCategoryLabel,
+  fetchClosedTodos,
   fetchHub,
   fetchTodosAndConfig,
   getToken,
   renameCategoryLabel,
+  reopenTodo,
   saveConfig,
   setPriority,
   setProject,
@@ -26,6 +28,7 @@ import {
   type AppConfig,
   type BacklogSort,
 } from "./config";
+import { fromHub, fromTodos, splitByRecency, type DoneEntry } from "./done";
 import { ageDays, sortProjects, splitItem, staleLabel, staleOf } from "./hub";
 import { compareTodos, dueState, todayInSeoul } from "./parse";
 import { readOrigin, since } from "./devices";
@@ -46,6 +49,7 @@ export default function App() {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG);
   const [hub, setHub] = useState<HubFile | null>(null);
+  const [closed, setClosed] = useState<Todo[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const today = todayInSeoul();
@@ -120,6 +124,15 @@ export default function App() {
     [sorted, config],
   );
 
+  /** 완료 목록은 펼칠 때만 불러온다. 첫 화면에 필요 없는 호출이다. */
+  const loadClosed = useCallback(async () => {
+    try {
+      setClosed(await fetchClosedTodos(config));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }, [config]);
+
   /** 드래그 결과 반영 — 화면 먼저 바꾸고 저장은 뒤에서. */
   async function reorder(category: string, numbers: number[]) {
     const next = withOrder(config, category, numbers);
@@ -188,6 +201,15 @@ export default function App() {
           })}
 
           <CategoryManager config={config} onChanged={(cfg) => { setConfig(cfg); void load(); }} />
+
+          <DoneSection
+            entries={[...fromTodos(closed), ...fromHub(hub)]}
+            onOpen={() => void loadClosed()}
+            onReopened={() => {
+              void load();
+              void loadClosed();
+            }}
+          />
         </div>
 
         {hub && hub.projects.length > 0 && (
@@ -732,5 +754,81 @@ function HubSection({
         {hub.drawnAt} 기준 · 커밋 {hub.commit} ({hub.commitDate})
       </p>
     </section>
+  );
+}
+
+/**
+ * 끝낸 것. 접혀 있고 펼칠 때만 닫힌 이슈를 불러온다.
+ * 최근 7일과 그 이전으로 가르는데, 오래된 쪽은 한 번 더 접어 둔다.
+ */
+function DoneSection({
+  entries,
+  onOpen,
+  onReopened,
+}: {
+  entries: DoneEntry[];
+  onOpen: () => void;
+  onReopened: () => void;
+}) {
+  const [showOlder, setShowOlder] = useState(false);
+  const { recent, older } = splitByRecency(entries, Date.now());
+
+  return (
+    <details className="done" onToggle={(e) => e.currentTarget.open && onOpen()}>
+      <summary>
+        끝낸 것 <span className="count">{entries.length}</span>
+      </summary>
+
+      <h3>최근 7일</h3>
+      {recent.length === 0 ? (
+        <p className="empty">없음</p>
+      ) : (
+        recent.map((e) => <DoneRow key={e.key} entry={e} onReopened={onReopened} />)
+      )}
+
+      {older.length > 0 && (
+        <>
+          <button className="ghost more" onClick={() => setShowOlder((v) => !v)}>
+            {showOlder ? "그 이전 접기" : `그 이전 ${older.length}건 보기`}
+          </button>
+          {showOlder &&
+            older.map((e) => <DoneRow key={e.key} entry={e} onReopened={onReopened} />)}
+        </>
+      )}
+    </details>
+  );
+}
+
+function DoneRow({ entry, onReopened }: { entry: DoneEntry; onReopened: () => void }) {
+  const [busy, setBusy] = useState(false);
+
+  async function reopen() {
+    if (!entry.todo) return;
+    setBusy(true);
+    try {
+      await reopenTodo(entry.todo);
+      onReopened();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="done-row">
+      <div className="done-title">{tidy(entry.title)}</div>
+      <div className="meta">
+        {entry.at && <span className="tag when">{since(entry.at)}</span>}
+        {entry.project && (
+          <a className="tag project" href={hubUrl(entry.project.slug)} target="_blank" rel="noreferrer">
+            {tidy(entry.project.title)}
+          </a>
+        )}
+        {entry.todo && (
+          <button className="ghost undo" disabled={busy} onClick={() => void reopen()}>
+            되돌리기
+          </button>
+        )}
+      </div>
+    </div>
   );
 }

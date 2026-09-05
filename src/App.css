@@ -644,3 +644,65 @@ a.tag {
 .hub summary .age {
   margin-left: 0;
 }
+
+/* 끝낸 것 — 평소엔 접혀 있다. 되짚어 볼 자리지 매일 보는 목록이 아니다. */
+.done {
+  margin-top: 20px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.done > summary {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--dim);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.done h3 {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--dim);
+  margin: 14px 0 6px;
+}
+
+.done .empty {
+  font-size: 13px;
+  color: var(--dim);
+  opacity: 0.7;
+  margin: 0 0 4px;
+}
+
+.done-row {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.done-title {
+  font-size: 14px;
+  color: var(--dim);
+  text-decoration: line-through;
+  text-decoration-color: var(--line);
+}
+
+.done-row .meta {
+  margin-top: 4px;
+}
+
+.done .more {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--dim);
+  padding: 6px 10px;
+}
+
+.undo {
+  font-size: 12px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  color: var(--dim);
+  margin-bottom: 0;
+}

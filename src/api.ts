@@ -91,6 +91,25 @@ export async function fetchTodosAndConfig(): Promise<{ todos: Todo[]; config: Ap
   return { todos, config };
 }
 
+/** 닫힌 이슈. 닫으면 화면에서 사라져 버려 무엇이 끝났는지 되짚을 자리가 없었다. */
+export async function fetchClosedTodos(config: AppConfig): Promise<Todo[]> {
+  const res = await call(
+    `/repos/${REPO}/issues?state=closed&sort=updated&direction=desc&per_page=100`,
+  );
+  const raw = (await res.json()) as RawIssue[];
+  return raw
+    .filter((i) => !i.pull_request && !isSystem(i))
+    .map((i) => toTodo(i, config.categories));
+}
+
+/** 닫은 것을 되돌린다. 잘못 닫힌 게 보이면 그 자리에서 다시 연다. */
+export async function reopenTodo(todo: Todo): Promise<void> {
+  await call(`/repos/${REPO}/issues/${todo.number}`, {
+    method: "PATCH",
+    body: JSON.stringify({ state: "open" }),
+  });
+}
+
 export async function createTodo(input: {
   title: string;
   category: string | null;

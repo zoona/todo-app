@@ -27,6 +27,8 @@ export type Todo = {
   due: string | null; // YYYY-MM-DD 또는 YYYY-MM-DD HH:mm
   origin: string | null;
   createdAt: string;
+  /** 닫힌 시각. 열려 있으면 null */
+  closedAt: string | null;
   body: string;
 };
 
@@ -35,6 +37,8 @@ export type HubProject = {
   title: string;
   /** date는 그 줄이 마지막으로 바뀐 날. 오래된 쪽만 신호다 — 문서를 손보면 리셋된다. */
   items: { depth: number; text: string; date?: string | null }[];
+  /** 끝낸 항목. date는 그 줄이 마지막으로 바뀐 날이라 대체로 완료 시점이다. */
+  done?: { text: string; date?: string | null }[];
 };
 
 export type HubFile = {
