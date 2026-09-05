@@ -176,6 +176,7 @@ function AddForm({
   const [withTime, setWithTime] = useState(false);
   const [more, setMore] = useState(false);
   const [busy, setBusy] = useState(false);
+  const open = title.trim().length > 0;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -209,28 +210,31 @@ function AddForm({
         enterKeyHint="done"
       />
 
-      <div className="chips">
-        {CATEGORIES.map((c) => (
+      {/* 아무것도 안 친 상태에서는 입력 한 줄만 둔다. 목록이 주인공이다. */}
+      {open && (
+        <div className="chips">
+          {CATEGORIES.map((c) => (
+            <button
+              key={c}
+              type="button"
+              className={category === c ? "chip on" : "chip"}
+              onClick={() => setCategory(c)}
+            >
+              {c}
+            </button>
+          ))}
           <button
-            key={c}
             type="button"
-            className={category === c ? "chip on" : "chip"}
-            onClick={() => setCategory(c)}
+            className="chip more"
+            onClick={() => setMore((v) => !v)}
+            aria-expanded={more}
           >
-            {c}
+            {more ? "접기" : "더"}
           </button>
-        ))}
-        <button
-          type="button"
-          className="chip more"
-          onClick={() => setMore((v) => !v)}
-          aria-expanded={more}
-        >
-          {more ? "접기" : "더"}
-        </button>
-      </div>
+        </div>
+      )}
 
-      {more && (
+      {open && more && (
         <div className="more-fields">
           <div className="chips">
             {(["높음", "보통", "낮음"] as Priority[]).map((p) => (
@@ -275,9 +279,11 @@ function AddForm({
         </div>
       )}
 
-      <button className="primary" type="submit" disabled={busy || !title.trim()}>
-        {busy ? "담는 중" : "담기"}
-      </button>
+      {open && (
+        <button className="primary" type="submit" disabled={busy}>
+          {busy ? "담는 중" : "담기"}
+        </button>
+      )}
     </form>
   );
 }
@@ -320,13 +326,14 @@ function Row({
           {todo.title}
         </a>
         <div className="meta">
+          {/* 대부분이 보통이라 보통은 점 하나로 둔다. 다 적으면 눈에 걸린다. */}
           <button
             className={`prio p${todo.priority}`}
             disabled={busy}
             onClick={() => void run(() => setPriority(todo, nextPriority))}
-            title="눌러서 바꾸기"
+            aria-label={`우선순위 ${todo.priority}, 눌러서 바꾸기`}
           >
-            {todo.priority}
+            {todo.priority === "보통" ? "·" : todo.priority}
           </button>
           {todo.project && <span className="tag">{todo.project}</span>}
           {todo.inProgress && <span className="tag">진행중</span>}

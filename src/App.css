@@ -327,3 +327,9 @@ select {
 .chips {
   flex-wrap: wrap;
 }
+
+/* 보통은 점 하나로만 남긴다. 줄마다 "보통"이 붙으면 눈에 걸린다. */
+.prio.p보통 {
+  opacity: 0.35;
+  padding: 1px 6px;
+}
