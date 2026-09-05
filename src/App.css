@@ -410,19 +410,17 @@ a.tag {
   cursor: pointer;
 }
 
-@media (max-width: 979px) {
-  .hub-item {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
+.hub-item {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 
-  .hub-item.expanded {
-    display: list-item;
-    -webkit-line-clamp: unset;
-    overflow: visible;
-  }
+.hub-item.expanded {
+  display: list-item;
+  -webkit-line-clamp: unset;
+  overflow: visible;
 }
 
 /* 데스크톱: 할 일과 프로젝트 남은 일을 나란히 */
@@ -579,18 +577,22 @@ a.tag {
   cursor: grab;
 }
 
-/* 백로그 정렬 — 제목 줄 오른쪽에 붙는다 */
-.hub h2 {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+/* 백로그 정렬 — 제목 줄 오른쪽 끝에. 전역 select는 width:100%라 되돌려야 한다 */
+.hub h2 .title {
+  white-space: nowrap;
 }
+
 .hub h2 .sort {
+  width: auto;
+  flex: none;
   margin-left: auto;
   font-size: 12px;
-  color: #6b7280;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
-  padding: 2px 4px;
-  background: #fff;
+  padding: 4px 6px;
+  border-radius: 8px;
+  color: var(--dim);
+}
+
+/* 요약 줄에서는 flex gap이 이미 간격을 주므로 방치 표시의 여백을 뺀다 */
+.hub summary .age {
+  margin-left: 0;
 }

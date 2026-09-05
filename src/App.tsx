@@ -671,15 +671,15 @@ function HubSection({
   return (
     <section className="hub">
       <h2>
-        프로젝트 백로그
+        <span className="title">프로젝트 백로그</span>
         <select
           className="sort"
           value={sort}
           onChange={(e) => onSort(e.target.value as BacklogSort)}
           aria-label="백로그 정렬"
         >
-          <option value="stale">방치 오래된 순</option>
-          <option value="name">이름순</option>
+          <option value="stale">Stale first</option>
+          <option value="name">A–Z</option>
         </select>
       </h2>
       {sortProjects(hub.projects, sort, now).map((p) => {
