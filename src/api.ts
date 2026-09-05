@@ -17,11 +17,21 @@ export function clearToken() {
   localStorage.removeItem(TOKEN_KEY);
 }
 
-export class AuthError extends Error {}
+export class ApiError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
+/** 토큰을 다시 받아야 하는 상태. 401, 403, 그리고 repo가 안 보이는 404. */
+export class AuthError extends ApiError {}
 
 async function call(path: string, init: RequestInit = {}) {
   const token = getToken();
-  if (!token) throw new AuthError("토큰이 없습니다");
+  if (!token) throw new AuthError(401, "토큰이 없습니다");
   const res = await fetch(`${API}${path}`, {
     ...init,
     headers: {
@@ -31,10 +41,15 @@ async function call(path: string, init: RequestInit = {}) {
       ...init.headers,
     },
   });
-  if (res.status === 401 || res.status === 403) {
-    throw new AuthError("토큰이 만료됐거나 권한이 없습니다");
+  if (!res.ok) {
+    // GitHub가 준 이유를 그대로 보여준다. 내 문구로 덮으면 무엇이 틀렸는지 모른다.
+    const detail = (await res.json().catch(() => null)) as { message?: string } | null;
+    const reason = detail?.message ?? res.statusText;
+    if (res.status === 401 || res.status === 403) {
+      throw new AuthError(res.status, `${res.status} ${reason}`);
+    }
+    throw new ApiError(res.status, `${res.status} ${reason}`);
   }
-  if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
   return res;
 }
 
@@ -43,7 +58,13 @@ function labelNames(issue: RawIssue): string[] {
 }
 
 export async function fetchTodos(): Promise<Todo[]> {
-  const res = await call(`/repos/${REPO}/issues?state=open&per_page=100`);
+  // repo가 안 보이는 404는 토큰이 그 repo를 못 보는 것이다. 여기서만 인증 오류로 올린다.
+  const res = await call(`/repos/${REPO}/issues?state=open&per_page=100`).catch((err) => {
+    if (err instanceof ApiError && err.status === 404) {
+      throw new AuthError(404, `토큰이 ${REPO}를 못 봅니다. 만들 때 그 repo를 골랐는지, 권한에 Issues를 넣었는지 확인하세요.`);
+    }
+    throw err;
+  });
   const raw = (await res.json()) as RawIssue[];
   return raw
     .filter((i) => !i.pull_request && !labelNames(i).includes(SYSTEM_LABEL))
