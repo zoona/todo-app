@@ -491,14 +491,14 @@ function Row({
           {todo.title}
         </a>
         <div className="meta">
-          {/* 대부분이 보통이라 보통은 점 하나로 둔다. 다 적으면 눈에 걸린다. */}
+          {/* 글자로 적는다. 점 하나로 뒀더니 무슨 뜻인지도, 누를 수 있는지도 안 보였다. */}
           <button
             className={`prio p${todo.priority}`}
             disabled={busy}
             onClick={() => void run(() => setPriority(todo, nextPriority))}
             aria-label={`우선순위 ${todo.priority}, 눌러서 바꾸기`}
           >
-            {todo.priority === "보통" ? "·" : todo.priority}
+            {todo.priority}
           </button>
 
           {/* 프로젝트 연결 — 누르면 바꾸거나 해제. 할 일 일부만 프로젝트에 붙는다. */}

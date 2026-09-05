@@ -333,18 +333,19 @@ select {
   font-weight: 600;
 }
 
-.prio.p낮음 {
-  opacity: 0.55;
-}
-
 .chips {
   flex-wrap: wrap;
 }
 
-/* 보통은 점 하나로만 남긴다. 줄마다 "보통"이 붙으면 눈에 걸린다. */
+/* 보통은 옆의 태그들과 같은 무게로 둔다. 흐리게 죽이면 안 읽힌다. */
 .prio.p보통 {
-  opacity: 0.35;
-  padding: 1px 6px;
+  opacity: 1;
+}
+
+.prio.p낮음 {
+  opacity: 1;
+  color: var(--dim);
+  border-style: dashed;
 }
 
 .error-box {
