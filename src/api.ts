@@ -1,4 +1,11 @@
 import { toTodo, withDue, withProject, type RawIssue } from "./parse";
+import {
+  parseSubscriptions,
+  remove,
+  renderSubscriptions,
+  upsert,
+  type PushSubscriptionRecord,
+} from "./push";
 import { SYSTEM_LABEL, UNSORTED, type HubFile, type Priority, type Todo } from "./types";
 
 const REPO = "zoona/todo";
@@ -67,7 +74,12 @@ export async function fetchTodos(): Promise<Todo[]> {
   });
   const raw = (await res.json()) as RawIssue[];
   return raw
-    .filter((i) => !i.pull_request && !labelNames(i).includes(SYSTEM_LABEL))
+    .filter(
+      (i) =>
+        !i.pull_request &&
+        !labelNames(i).includes(SYSTEM_LABEL) &&
+        !labelNames(i).includes(PUSH_LABEL),
+    )
     .map(toTodo);
 }
 
@@ -118,6 +130,51 @@ export async function setCategory(number: number, category: string): Promise<voi
   await call(`/repos/${REPO}/issues/${number}/labels`, {
     method: "PUT",
     body: JSON.stringify({ labels: [category] }),
+  });
+}
+
+const PUSH_LABEL = "push";
+
+/** 구독을 담아둔 이슈. 없으면 만든다. */
+async function pushIssue(): Promise<{ number: number; body: string }> {
+  const res = await call(
+    `/repos/${REPO}/issues?state=open&labels=${encodeURIComponent(PUSH_LABEL)}&per_page=1`,
+  );
+  const found = (await res.json()) as RawIssue[];
+  if (found.length) return { number: found[0].number, body: found[0].body ?? "" };
+
+  const created = await call(`/repos/${REPO}/issues`, {
+    method: "POST",
+    body: JSON.stringify({
+      title: "알림 구독",
+      labels: [PUSH_LABEL],
+      body: renderSubscriptions([]),
+    }),
+  });
+  const issue = (await created.json()) as RawIssue;
+  return { number: issue.number, body: issue.body ?? "" };
+}
+
+export async function readSubscriptions(): Promise<PushSubscriptionRecord[]> {
+  const issue = await pushIssue();
+  return parseSubscriptions(issue.body);
+}
+
+export async function saveSubscription(record: PushSubscriptionRecord): Promise<void> {
+  const issue = await pushIssue();
+  const next = upsert(parseSubscriptions(issue.body), record);
+  await call(`/repos/${REPO}/issues/${issue.number}`, {
+    method: "PATCH",
+    body: JSON.stringify({ body: renderSubscriptions(next, issue.body) }),
+  });
+}
+
+export async function dropSubscription(endpoint: string): Promise<void> {
+  const issue = await pushIssue();
+  const next = remove(parseSubscriptions(issue.body), endpoint);
+  await call(`/repos/${REPO}/issues/${issue.number}`, {
+    method: "PATCH",
+    body: JSON.stringify({ body: renderSubscriptions(next, issue.body) }),
   });
 }
 

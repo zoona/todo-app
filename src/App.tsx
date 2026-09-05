@@ -18,6 +18,7 @@ import {
   type Priority,
   type Todo,
 } from "./types";
+import { NotifyToggle } from "./NotifyToggle";
 import "./App.css";
 
 const SECTIONS = [...CATEGORIES, UNSORTED];
@@ -122,6 +123,7 @@ export default function App() {
       {hub && hub.projects.length > 0 && <HubSection hub={hub} />}
 
       <footer>
+        <NotifyToggle />
         <button
           className="ghost"
           onClick={() => {
