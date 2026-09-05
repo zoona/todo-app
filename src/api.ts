@@ -1,5 +1,5 @@
-import { toTodo, withDue, type RawIssue } from "./parse";
-import { SYSTEM_LABEL, type HubFile, type Todo } from "./types";
+import { toTodo, withDue, withProject, type RawIssue } from "./parse";
+import { SYSTEM_LABEL, UNSORTED, type HubFile, type Priority, type Todo } from "./types";
 
 const REPO = "zoona/todo";
 const API = "https://api.github.com";
@@ -74,13 +74,29 @@ export async function fetchTodos(): Promise<Todo[]> {
 export async function createTodo(input: {
   title: string;
   category: string | null;
+  priority: Priority;
+  project: string | null;
   due: string | null;
 }): Promise<void> {
-  const labels = input.category ? [input.category] : [];
-  const body = withDue("출처: 웹앱", input.due);
+  const labels = [input.category, input.priority === "보통" ? null : input.priority].filter(
+    (x): x is string => !!x,
+  );
+  let body = withProject("출처: 웹앱", input.project);
+  body = withDue(body, input.due);
   await call(`/repos/${REPO}/issues`, {
     method: "POST",
     body: JSON.stringify({ title: input.title, labels, body }),
+  });
+}
+
+export async function setPriority(todo: Todo, priority: Priority): Promise<void> {
+  const keep = [todo.category === UNSORTED ? null : todo.category, todo.inProgress ? "진행중" : null];
+  const labels = [...keep, priority === "보통" ? null : priority].filter(
+    (x): x is string => !!x,
+  );
+  await call(`/repos/${REPO}/issues/${todo.number}/labels`, {
+    method: "PUT",
+    body: JSON.stringify({ labels }),
   });
 }
 

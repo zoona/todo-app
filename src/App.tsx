@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AuthError,
   clearToken,
@@ -7,10 +7,17 @@ import {
   fetchHub,
   fetchTodos,
   getToken,
+  setPriority,
   setToken,
 } from "./api";
-import { dueState, todayInSeoul } from "./parse";
-import { CATEGORIES, UNSORTED, type HubFile, type Todo } from "./types";
+import { compareTodos, dueState, todayInSeoul } from "./parse";
+import {
+  CATEGORIES,
+  UNSORTED,
+  type HubFile,
+  type Priority,
+  type Todo,
+} from "./types";
 import "./App.css";
 
 const SECTIONS = [...CATEGORIES, UNSORTED];
@@ -54,13 +61,19 @@ export default function App() {
     if (authed) void load();
   }, [authed, load]);
 
+  const sorted = useMemo(
+    () => [...todos].sort((a, b) => compareTodos(a, b, today)),
+    [todos, today],
+  );
+
   if (!authed) {
     return <TokenGate onSaved={() => setAuthed(true)} error={error} />;
   }
 
-  const open = todos.filter((t) => t.category !== undefined);
-  const overdue = open.filter((t) => dueState(t.due, today) === "overdue");
-  const dueToday = open.filter((t) => dueState(t.due, today) === "today");
+  const urgent = sorted.filter((t) => {
+    const s = dueState(t.due, today);
+    return s === "overdue" || s === "today";
+  });
 
   return (
     <div className="app">
@@ -73,22 +86,19 @@ export default function App() {
 
       {error && <p className="error">{error}</p>}
 
-      <AddForm today={today} onAdded={() => void load()} />
+      <AddForm today={today} hub={hub} onAdded={() => void load()} />
 
-      {(overdue.length > 0 || dueToday.length > 0) && (
+      {urgent.length > 0 && (
         <section className="urgent">
           <h2>지금 볼 것</h2>
-          {overdue.map((t) => (
-            <Row key={t.number} todo={t} today={today} onDone={() => void load()} />
-          ))}
-          {dueToday.map((t) => (
-            <Row key={t.number} todo={t} today={today} onDone={() => void load()} />
+          {urgent.map((t) => (
+            <Row key={t.number} todo={t} today={today} onChanged={() => void load()} />
           ))}
         </section>
       )}
 
       {SECTIONS.map((name) => {
-        const rows = open.filter((t) => t.category === name);
+        const rows = sorted.filter((t) => t.category === name);
         if (!rows.length) return null;
         return (
           <section key={name}>
@@ -96,7 +106,7 @@ export default function App() {
               {name} <span className="count">{rows.length}</span>
             </h2>
             {rows.map((t) => (
-              <Row key={t.number} todo={t} today={today} onDone={() => void load()} />
+              <Row key={t.number} todo={t} today={today} onChanged={() => void load()} />
             ))}
           </section>
         );
@@ -105,7 +115,13 @@ export default function App() {
       {hub && hub.projects.length > 0 && <HubSection hub={hub} />}
 
       <footer>
-        <button className="ghost" onClick={() => { clearToken(); setAuthed(false); }}>
+        <button
+          className="ghost"
+          onClick={() => {
+            clearToken();
+            setAuthed(false);
+          }}
+        >
           토큰 지우기
         </button>
       </footer>
@@ -119,8 +135,8 @@ function TokenGate({ onSaved, error }: { onSaved: () => void; error: string | nu
     <div className="app gate">
       <h1>할 일</h1>
       <p>
-        <code>zoona/todo</code>의 Issues 읽기와 쓰기, Contents 읽기 권한을 준
-        fine-grained 토큰을 붙여넣으세요. 이 브라우저에만 저장됩니다.
+        <code>zoona/todo</code> 하나만 고른 fine-grained 토큰을 붙여넣으세요. 권한은
+        Issues 읽기·쓰기와 Contents 읽기. 이 브라우저에만 저장됩니다.
       </p>
       {error && <p className="error">{error}</p>}
       <input
@@ -143,10 +159,22 @@ function TokenGate({ onSaved, error }: { onSaved: () => void; error: string | nu
   );
 }
 
-function AddForm({ today, onAdded }: { today: string; onAdded: () => void }) {
+function AddForm({
+  today,
+  hub,
+  onAdded,
+}: {
+  today: string;
+  hub: HubFile | null;
+  onAdded: () => void;
+}) {
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState<string>("개인");
+  const [priority, setPriorityValue] = useState<Priority>("보통");
+  const [project, setProject] = useState("");
   const [due, setDue] = useState("");
+  const [withTime, setWithTime] = useState(false);
+  const [more, setMore] = useState(false);
   const [busy, setBusy] = useState(false);
 
   async function submit(e: React.FormEvent) {
@@ -154,9 +182,18 @@ function AddForm({ today, onAdded }: { today: string; onAdded: () => void }) {
     if (!title.trim()) return;
     setBusy(true);
     try {
-      await createTodo({ title: title.trim(), category, due: due || null });
+      await createTodo({
+        title: title.trim(),
+        category,
+        priority,
+        project: project || null,
+        due: due ? due.replace("T", " ") : null,
+      });
       setTitle("");
       setDue("");
+      setProject("");
+      setPriorityValue("보통");
+      setMore(false);
       onAdded();
     } finally {
       setBusy(false);
@@ -171,26 +208,73 @@ function AddForm({ today, onAdded }: { today: string; onAdded: () => void }) {
         onChange={(e) => setTitle(e.target.value)}
         enterKeyHint="done"
       />
-      <div className="add-row">
-        <div className="chips">
-          {CATEGORIES.map((c) => (
-            <button
-              key={c}
-              type="button"
-              className={category === c ? "chip on" : "chip"}
-              onClick={() => setCategory(c)}
-            >
-              {c}
-            </button>
-          ))}
-        </div>
-        <input
-          type="date"
-          value={due}
-          min={today}
-          onChange={(e) => setDue(e.target.value)}
-        />
+
+      <div className="chips">
+        {CATEGORIES.map((c) => (
+          <button
+            key={c}
+            type="button"
+            className={category === c ? "chip on" : "chip"}
+            onClick={() => setCategory(c)}
+          >
+            {c}
+          </button>
+        ))}
+        <button
+          type="button"
+          className="chip more"
+          onClick={() => setMore((v) => !v)}
+          aria-expanded={more}
+        >
+          {more ? "접기" : "더"}
+        </button>
       </div>
+
+      {more && (
+        <div className="more-fields">
+          <div className="chips">
+            {(["높음", "보통", "낮음"] as Priority[]).map((p) => (
+              <button
+                key={p}
+                type="button"
+                className={priority === p ? "chip on" : "chip"}
+                onClick={() => setPriorityValue(p)}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+
+          <select value={project} onChange={(e) => setProject(e.target.value)}>
+            <option value="">프로젝트 없음</option>
+            {hub?.projects.map((p) => (
+              <option key={p.slug} value={p.slug}>
+                {p.title}
+              </option>
+            ))}
+          </select>
+
+          <div className="due-row">
+            <input
+              type={withTime ? "datetime-local" : "date"}
+              value={due}
+              min={withTime ? `${today}T00:00` : today}
+              onChange={(e) => setDue(e.target.value)}
+            />
+            <button
+              type="button"
+              className={withTime ? "chip on" : "chip"}
+              onClick={() => {
+                setWithTime((v) => !v);
+                setDue("");
+              }}
+            >
+              시간
+            </button>
+          </div>
+        </div>
+      )}
+
       <button className="primary" type="submit" disabled={busy || !title.trim()}>
         {busy ? "담는 중" : "담기"}
       </button>
@@ -201,33 +285,50 @@ function AddForm({ today, onAdded }: { today: string; onAdded: () => void }) {
 function Row({
   todo,
   today,
-  onDone,
+  onChanged,
 }: {
   todo: Todo;
   today: string;
-  onDone: () => void;
+  onChanged: () => void;
 }) {
   const [busy, setBusy] = useState(false);
   const state = dueState(todo.due, today);
 
-  async function done() {
+  async function run(fn: () => Promise<void>) {
     setBusy(true);
     try {
-      await closeTodo(todo.number);
-      onDone();
+      await fn();
+      onChanged();
     } finally {
       setBusy(false);
     }
   }
 
+  const nextPriority: Priority =
+    todo.priority === "보통" ? "높음" : todo.priority === "높음" ? "낮음" : "보통";
+
   return (
     <div className={busy ? "row busy" : "row"}>
-      <button className="check" onClick={done} aria-label="완료" disabled={busy} />
+      <button
+        className="check"
+        onClick={() => void run(() => closeTodo(todo.number))}
+        aria-label="완료"
+        disabled={busy}
+      />
       <div className="body">
         <a href={todo.url} target="_blank" rel="noreferrer">
           {todo.title}
         </a>
         <div className="meta">
+          <button
+            className={`prio p${todo.priority}`}
+            disabled={busy}
+            onClick={() => void run(() => setPriority(todo, nextPriority))}
+            title="눌러서 바꾸기"
+          >
+            {todo.priority}
+          </button>
+          {todo.project && <span className="tag">{todo.project}</span>}
           {todo.inProgress && <span className="tag">진행중</span>}
           {state && <span className={`due ${state}`}>{dueLabel(todo.due!, state)}</span>}
         </div>
@@ -237,8 +338,9 @@ function Row({
 }
 
 function dueLabel(due: string, state: NonNullable<ReturnType<typeof dueState>>) {
+  const time = due.length > 10 ? ` ${due.slice(11)}` : "";
   if (state === "overdue") return `${due} 지남`;
-  if (state === "today") return "오늘";
+  if (state === "today") return `오늘${time}`;
   return due;
 }
 

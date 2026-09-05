@@ -271,3 +271,59 @@ footer {
   margin-top: 32px;
   text-align: center;
 }
+
+.chip.more {
+  margin-left: auto;
+  color: var(--dim);
+}
+
+.more-fields {
+  display: grid;
+  gap: 8px;
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+}
+
+select {
+  font: inherit;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--text);
+}
+
+.due-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.due-row input {
+  flex: 1;
+  padding: 9px 10px;
+}
+
+.prio {
+  font-size: 12px;
+  border-radius: 999px;
+  padding: 1px 8px;
+  border: 1px solid var(--line);
+  color: var(--dim);
+  background: transparent;
+}
+
+.prio.p높음 {
+  color: var(--red);
+  border-color: var(--red);
+  font-weight: 600;
+}
+
+.prio.p낮음 {
+  opacity: 0.55;
+}
+
+.chips {
+  flex-wrap: wrap;
+}
