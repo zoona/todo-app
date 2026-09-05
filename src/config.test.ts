@@ -15,6 +15,7 @@ import {
 const cfg: AppConfig = {
   categories: ["업무", "개인", "학습"],
   order: { 업무: [9, 6] },
+  backlogSort: "stale",
 };
 
 describe("parseConfig / renderConfig", () => {
@@ -24,6 +25,15 @@ describe("parseConfig / renderConfig", () => {
 
   it("기본 설정도 왕복한다", () => {
     expect(parseConfig(renderConfig(DEFAULT_CONFIG))).toEqual(DEFAULT_CONFIG);
+  });
+
+  it("backlogSort가 없거나 이상하면 stale로 채운다", () => {
+    const legacy = '```json\n{"categories":["업무"],"order":{}}\n```';
+    expect(parseConfig(legacy)?.backlogSort).toBe("stale");
+    const bad = '```json\n{"categories":["업무"],"backlogSort":"뭔가"}\n```';
+    expect(parseConfig(bad)?.backlogSort).toBe("stale");
+    const named = '```json\n{"categories":["업무"],"backlogSort":"name"}\n```';
+    expect(parseConfig(named)?.backlogSort).toBe("name");
   });
 
   it("본문이 없거나 깨졌으면 null", () => {
@@ -52,6 +62,12 @@ describe("카테고리 조작", () => {
     const out = removeCategory(cfg, "업무");
     expect(out.categories).toEqual(["개인", "학습"]);
     expect(out.order["업무"]).toBeUndefined();
+  });
+
+  it("이름 바꾸기와 삭제가 다른 설정을 떨어뜨리지 않는다", () => {
+    const named = { ...cfg, backlogSort: "name" as const };
+    expect(renameCategory(named, "업무", "회사").backlogSort).toBe("name");
+    expect(removeCategory(named, "업무").backlogSort).toBe("name");
   });
 
   it("추가는 뒤에, 중복은 무시", () => {

@@ -578,3 +578,19 @@ a.tag {
 .col-todos [draggable="true"] {
   cursor: grab;
 }
+
+/* 백로그 정렬 — 제목 줄 오른쪽에 붙는다 */
+.hub h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.hub h2 .sort {
+  margin-left: auto;
+  font-size: 12px;
+  color: #6b7280;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 2px 4px;
+  background: #fff;
+}

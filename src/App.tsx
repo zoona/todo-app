@@ -24,7 +24,9 @@ import {
   renameCategory,
   withOrder,
   type AppConfig,
+  type BacklogSort,
 } from "./config";
+import { ageDays, sortProjects, staleLabel, staleOf } from "./hub";
 import { compareTodos, dueState, todayInSeoul } from "./parse";
 import { readOrigin, since } from "./devices";
 import { UNSORTED, type HubFile, type Priority, type Todo } from "./types";
@@ -125,6 +127,13 @@ export default function App() {
     await saveConfig(next);
   }
 
+  /** 백로그 정렬 기준 변경. 화면에만 두지 않고 설정 이슈에 남긴다. */
+  async function setBacklogSort(backlogSort: BacklogSort) {
+    const next = { ...config, backlogSort };
+    setConfig(next);
+    await saveConfig(next);
+  }
+
   if (!authed) {
     return <TokenGate onSaved={() => setAuthed(true)} error={error} />;
   }
@@ -183,7 +192,13 @@ export default function App() {
 
         {hub && hub.projects.length > 0 && (
           <aside className="col-hub">
-            <HubSection hub={hub} wide={wide} todos={todos} />
+            <HubSection
+              hub={hub}
+              wide={wide}
+              todos={todos}
+              sort={config.backlogSort}
+              onSort={(s) => void setBacklogSort(s)}
+            />
           </aside>
         )}
       </div>
@@ -628,8 +643,6 @@ function CategoryManager({
   );
 }
 
-const DAY = 86400000;
-
 function tidy(text: string): string {
   return text.replace(/\*\*/g, "").replace(/`/g, "").replace(/·/g, ", ");
 }
@@ -638,28 +651,39 @@ function hubUrl(slug: string) {
   return `https://github.com/zoona/working/blob/main/projects/${slug}/HUB.md`;
 }
 
-function ageDays(date: string | null | undefined): number {
-  return date ? Math.floor((Date.now() - Date.parse(date)) / DAY) : 0;
-}
-
-function staleLabel(days: number): string {
-  if (days >= 365) return `${Math.floor(days / 365)}년 방치`;
-  if (days >= 30) return `${Math.floor(days / 30)}개월 방치`;
-  return `${Math.floor(days / 7)}주 방치`;
-}
-
-function HubSection({ hub, wide, todos }: { hub: HubFile; wide: boolean; todos: Todo[] }) {
-  // 정리 판단용 신호: 프로젝트마다 가장 오래 방치된 항목 기준으로 요약에도 띄운다
-  const staleOf = (p: HubFile["projects"][number]) =>
-    Math.max(0, ...p.items.map((i) => ageDays(i.date)));
+function HubSection({
+  hub,
+  wide,
+  todos,
+  sort,
+  onSort,
+}: {
+  hub: HubFile;
+  wide: boolean;
+  todos: Todo[];
+  sort: BacklogSort;
+  onSort: (s: BacklogSort) => void;
+}) {
+  const now = Date.now();
   // 실행 줄로 끌어온 것이 있는 프로젝트 — 백로그와 실행의 연결이 여기서 보인다
   const pulled = (slug: string) => todos.filter((t) => t.project === slug).length;
 
   return (
     <section className="hub">
-      <h2>프로젝트 백로그</h2>
-      {hub.projects.map((p) => {
-        const stale = staleOf(p);
+      <h2>
+        프로젝트 백로그
+        <select
+          className="sort"
+          value={sort}
+          onChange={(e) => onSort(e.target.value as BacklogSort)}
+          aria-label="백로그 정렬"
+        >
+          <option value="stale">오래 묵은 순</option>
+          <option value="name">이름순</option>
+        </select>
+      </h2>
+      {sortProjects(hub.projects, sort, now).map((p) => {
+        const stale = staleOf(p, now);
         const active = pulled(p.slug);
         return (
           <details key={p.slug} open={wide}>
@@ -680,7 +704,7 @@ function HubSection({ hub, wide, todos }: { hub: HubFile; wide: boolean; todos: 
             </summary>
             <ul>
               {p.items.map((item, i) => {
-                const days = ageDays(item.date);
+                const days = ageDays(item.date, now);
                 return (
                   // 모바일에서는 두 줄로 접고 누르면 펼친다. 항목이 문단 길이인 게 많다.
                   <li

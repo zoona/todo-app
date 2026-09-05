@@ -10,16 +10,25 @@
 const FENCE_START = "```json";
 const FENCE_END = "```";
 
+/**
+ * 백로그 정렬 기준. 수동 순서는 두지 않는다 — HUB 줄을 다시 쓰면 blame이
+ * 리셋되어 방치 신호가 죽는다. 화면에서만 순서를 바꾼다.
+ */
+export type BacklogSort = "stale" | "name";
+
 export type AppConfig = {
   /** 카테고리 라벨 이름, 보여줄 순서대로 */
   categories: string[];
   /** 카테고리별 수동 정렬 — 이슈 번호를 보여줄 순서대로. 없는 번호는 뒤에 붙는다 */
   order: Record<string, number[]>;
+  /** 프로젝트 백로그를 무엇으로 정렬할지 */
+  backlogSort: BacklogSort;
 };
 
 export const DEFAULT_CONFIG: AppConfig = {
   categories: ["업무", "개인", "학습", "아이디어"],
   order: {},
+  backlogSort: "stale",
 };
 
 export function parseConfig(body: string | null | undefined): AppConfig | null {
@@ -34,6 +43,7 @@ export function parseConfig(body: string | null | undefined): AppConfig | null {
     return {
       categories: raw.categories.filter((c: unknown) => typeof c === "string"),
       order: raw.order && typeof raw.order === "object" ? raw.order : {},
+      backlogSort: raw.backlogSort === "name" ? "name" : "stale",
     };
   } catch {
     return null;
@@ -68,6 +78,7 @@ export function renameCategory(cfg: AppConfig, from: string, to: string): AppCon
     delete order[from];
   }
   return {
+    ...cfg,
     categories: cfg.categories.map((c) => (c === from ? to : c)),
     order,
   };
@@ -76,7 +87,7 @@ export function renameCategory(cfg: AppConfig, from: string, to: string): AppCon
 export function removeCategory(cfg: AppConfig, name: string): AppConfig {
   const order = { ...cfg.order };
   delete order[name];
-  return { categories: cfg.categories.filter((c) => c !== name), order };
+  return { ...cfg, categories: cfg.categories.filter((c) => c !== name), order };
 }
 
 export function addCategory(cfg: AppConfig, name: string): AppConfig {
