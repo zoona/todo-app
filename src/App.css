@@ -373,3 +373,15 @@ select {
 a.tag.origin {
   text-decoration: none;
 }
+
+/* 방치 기간 — 정리 판단용 신호. 3주 넘으면 색으로 띈다. */
+.age {
+  font-size: 11px;
+  color: var(--dim);
+  margin-left: 6px;
+  white-space: nowrap;
+}
+
+.age.stale {
+  color: var(--amber);
+}

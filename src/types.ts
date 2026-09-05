@@ -34,7 +34,8 @@ export type Todo = {
 export type HubProject = {
   slug: string;
   title: string;
-  items: { depth: number; text: string }[];
+  /** date는 그 줄이 마지막으로 바뀐 날. 오래된 쪽만 신호다 — 문서를 손보면 리셋된다. */
+  items: { depth: number; text: string; date?: string | null }[];
 };
 
 export type HubFile = {
