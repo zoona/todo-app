@@ -360,3 +360,16 @@ select {
   max-width: 30em;
   margin: 0 auto 8px !important;
 }
+
+/* 출처와 담은 시점은 참고용이라 더 흐리게 둔다. */
+.tag.origin,
+.tag.when {
+  opacity: 0.7;
+  border-color: transparent;
+  padding-left: 0;
+  padding-right: 4px;
+}
+
+a.tag.origin {
+  text-decoration: none;
+}

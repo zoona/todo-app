@@ -27,6 +27,7 @@ export type Todo = {
   inProgress: boolean;
   due: string | null; // YYYY-MM-DD 또는 YYYY-MM-DD HH:mm
   origin: string | null;
+  createdAt: string;
   body: string;
 };
 

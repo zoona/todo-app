@@ -11,6 +11,7 @@ import {
   setToken,
 } from "./api";
 import { compareTodos, dueState, todayInSeoul } from "./parse";
+import { readOrigin, since } from "./devices";
 import {
   CATEGORIES,
   UNSORTED,
@@ -308,6 +309,7 @@ function Row({
 }) {
   const [busy, setBusy] = useState(false);
   const state = dueState(todo.due, today);
+  const origin = readOrigin(todo.origin);
 
   async function run(fn: () => Promise<void>) {
     setBusy(true);
@@ -347,6 +349,15 @@ function Row({
           {todo.project && <span className="tag">{todo.project}</span>}
           {todo.inProgress && <span className="tag">진행중</span>}
           {state && <span className={`due ${state}`}>{dueLabel(todo.due!, state)}</span>}
+          {origin &&
+            (origin.session ? (
+              <a className="tag origin" href={origin.session} target="_blank" rel="noreferrer">
+                {origin.label} ↗
+              </a>
+            ) : (
+              <span className="tag origin">{origin.label}</span>
+            ))}
+          {todo.createdAt && <span className="tag when">{since(todo.createdAt)}</span>}
         </div>
       </div>
     </div>

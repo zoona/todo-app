@@ -75,6 +75,7 @@ export type RawIssue = {
   html_url: string;
   body: string | null;
   labels: ({ name: string } | string)[];
+  created_at?: string;
   pull_request?: unknown;
 };
 
@@ -90,6 +91,7 @@ export function toTodo(issue: RawIssue): Todo {
     inProgress: labels.includes("진행중"),
     due: parseDue(issue.body),
     origin: parseOrigin(issue.body),
+    createdAt: issue.created_at ?? "",
     body: issue.body ?? "",
   };
 }
