@@ -824,6 +824,11 @@ function DoneRow({ entry, onReopened }: { entry: DoneEntry; onReopened: () => vo
           </a>
         )}
         {entry.todo && (
+          <a className="tag when" href={entry.todo.url} target="_blank" rel="noreferrer">
+            {entry.todo.comments > 0 ? `댓글 ${entry.todo.comments}` : "이슈"} ↗
+          </a>
+        )}
+        {entry.todo && (
           <button className="ghost undo" disabled={busy} onClick={() => void reopen()}>
             되돌리기
           </button>

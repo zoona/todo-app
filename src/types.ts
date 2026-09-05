@@ -29,6 +29,8 @@ export type Todo = {
   createdAt: string;
   /** 닫힌 시각. 열려 있으면 null */
   closedAt: string | null;
+  /** 댓글 수. 닫으며 남긴 기록이 여기 있어 읽을 게 있는지 알려준다. */
+  comments: number;
   body: string;
 };
 

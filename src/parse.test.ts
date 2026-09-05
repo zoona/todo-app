@@ -172,6 +172,7 @@ describe("compareTodos", () => {
     origin: null,
     createdAt: "2026-09-05T00:00:00Z",
     closedAt: null,
+    comments: 0,
     body: "",
   };
   const make = (p: Partial<Todo>): Todo => ({ ...base, ...p });
