@@ -41,6 +41,9 @@ async function call(path: string, init: RequestInit = {}) {
   if (!token) throw new AuthError(401, "토큰이 없습니다");
   const res = await fetch(`${API}${path}`, {
     ...init,
+    // GitHub API 응답에 max-age=60이 붙어서 방금 담은 것이 새로고침에도 60초간
+    // 안 보였다. 할 일 앱은 항상 현재 상태를 보여야 하므로 HTTP 캐시를 끈다.
+    cache: "no-store",
     headers: {
       Accept: "application/vnd.github+json",
       Authorization: `Bearer ${token}`,
