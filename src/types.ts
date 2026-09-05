@@ -1,4 +1,4 @@
-export const CATEGORIES = ["일", "개인", "학습", "아이디어"] as const;
+export const CATEGORIES = ["업무", "개인", "학습", "아이디어"] as const;
 export type Category = (typeof CATEGORIES)[number];
 
 export const UNSORTED = "미분류";

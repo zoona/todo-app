@@ -462,7 +462,7 @@ function HubSection({ hub, wide }: { hub: HubFile; wide: boolean }) {
 
   return (
     <section className="hub">
-      <h2>프로젝트 남은 일</h2>
+      <h2>프로젝트 백로그</h2>
       {hub.projects.map((p) => {
         const stale = staleOf(p);
         return (
