@@ -229,9 +229,15 @@ input {
   margin-bottom: 6px;
 }
 
+/* 프로젝트 제목은 카드의 머리. 항목 앞머리(14/500)와 한 단 벌리고 선으로 끊는다 —
+   15/400 대 14/400이라 같은 층으로 보였다. */
 .hub summary {
   cursor: pointer;
-  font-size: 15px;
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
 }
 
 /* 항목 글자는 본문 색으로. --dim은 날짜 같은 메타데이터에만 쓴다 —
@@ -430,6 +436,7 @@ a.tag {
 }
 
 .hub-head {
+  font-weight: 500;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
