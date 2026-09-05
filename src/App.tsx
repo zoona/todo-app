@@ -26,7 +26,7 @@ import {
   type AppConfig,
   type BacklogSort,
 } from "./config";
-import { ageDays, sortProjects, staleLabel, staleOf } from "./hub";
+import { ageDays, sortProjects, splitItem, staleLabel, staleOf } from "./hub";
 import { compareTodos, dueState, todayInSeoul } from "./parse";
 import { readOrigin, since } from "./devices";
 import { UNSORTED, type HubFile, type Priority, type Todo } from "./types";
@@ -705,6 +705,7 @@ function HubSection({
             <ul>
               {p.items.map((item, i) => {
                 const days = ageDays(item.date, now);
+                const { head, rest } = splitItem(tidy(item.text));
                 return (
                   // 모바일에서는 두 줄로 접고 누르면 펼친다. 항목이 문단 길이인 게 많다.
                   <li
@@ -713,7 +714,10 @@ function HubSection({
                     style={{ marginLeft: item.depth * 12 }}
                     onClick={(e) => e.currentTarget.classList.toggle("expanded")}
                   >
-                    <span className="hub-text">{tidy(item.text)}</span>
+                    <div className="hub-body">
+                      <div className="hub-head">{head}</div>
+                      {rest && <div className="hub-rest">{rest}</div>}
+                    </div>
                     {days >= 7 && (
                       <span className={days >= 21 ? "age stale" : "age"}>{since(item.date!)}</span>
                     )}

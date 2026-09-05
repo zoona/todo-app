@@ -422,27 +422,39 @@ a.tag {
   color: var(--text);
 }
 
-.hub-text {
+/* 앞머리는 본문 색, 상세는 흐리게 한 줄. 긴 항목을 통째로 보여주면 문단이
+   20개 늘어서 훑을 수가 없다. 누르면 둘 다 펼쳐진다. */
+.hub-body {
   flex: 1;
   min-width: 0;
-  /* 내어쓰기 — 첫 줄은 왼쪽 끝, 이어지는 줄은 들여쓴다. 두 줄짜리 항목에서
-     둘째 줄과 다음 항목 첫 줄이 헷갈리지 않게 하는 것. */
-  padding-left: 14px;
-  text-indent: -14px;
+}
+
+.hub-head {
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
-.hub-item.expanded .hub-text {
+.hub-rest {
+  margin-top: 1px;
+  color: var(--dim);
+  font-size: 13px;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.hub-item.expanded .hub-head,
+.hub-item.expanded .hub-rest {
   display: block;
 }
 
 /* 좁은 화면은 한 줄에 담기는 양이 절반이라 세 줄까지 보여준다 */
 @media (max-width: 979px) {
-  .hub-text {
-    -webkit-line-clamp: 3;
+  .hub-rest {
+    -webkit-line-clamp: 2;
   }
 
   .hub-item {

@@ -40,3 +40,24 @@ export function sortProjects(
   if (sort === "name") return [...projects].sort(byName);
   return [...projects].sort((a, b) => staleOf(b, now) - staleOf(a, now) || byName(a, b));
 }
+
+/**
+ * 항목을 앞머리와 상세로 가른다.
+ *
+ * HUB 항목은 대개 "앞머리 — 상세", "앞머리: 상세", "앞머리 (부연)" 꼴로 쓰여 있다.
+ * 긴 항목을 통째로 보여주면 문단이 20개 늘어서 훑을 수가 없다. 앞머리만 본문 색으로
+ * 띄우고 상세는 흐리게 붙이면 목록으로 읽힌다. 짧은 항목은 가르지 않는다.
+ */
+const SEPARATOR = /\s+—\s+|:\s+|\s+(?=\()|\.\s+/;
+const SHORT_ENOUGH = 45;
+const HEAD_MIN = 3;
+
+export function splitItem(text: string): { head: string; rest: string } {
+  if (text.length <= SHORT_ENOUGH) return { head: text, rest: "" };
+  const m = SEPARATOR.exec(text);
+  if (!m || m.index < HEAD_MIN || m.index > SHORT_ENOUGH) return { head: text, rest: "" };
+  return {
+    head: text.slice(0, m.index).trim(),
+    rest: text.slice(m.index + m[0].length).trim(),
+  };
+}
