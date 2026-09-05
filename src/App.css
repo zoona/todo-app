@@ -405,22 +405,30 @@ a.tag {
   gap: 6px;
 }
 
-/* 모바일: 문단 길이 항목은 두 줄로 접고 누르면 펼친다 */
+/* 문단 길이 항목은 두 줄로 접고 누르면 펼친다. 방치 표시는 접는 상자 밖에
+   둬야 긴 항목에서도 안 잘린다 — 이 화면에서 제일 중요한 신호다. */
 .hub-item {
   cursor: pointer;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
 }
 
-.hub-item {
+.hub-text {
+  flex: 1;
+  min-width: 0;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
-.hub-item.expanded {
-  display: list-item;
-  -webkit-line-clamp: unset;
-  overflow: visible;
+.hub-item.expanded .hub-text {
+  display: block;
+}
+
+.hub-item .age {
+  margin-left: 0;
 }
 
 /* 데스크톱: 할 일과 프로젝트 남은 일을 나란히 */

@@ -713,7 +713,7 @@ function HubSection({
                     style={{ marginLeft: item.depth * 12 }}
                     onClick={(e) => e.currentTarget.classList.toggle("expanded")}
                   >
-                    {tidy(item.text)}
+                    <span className="hub-text">{tidy(item.text)}</span>
                     {days >= 7 && (
                       <span className={days >= 21 ? "age stale" : "age"}>{since(item.date!)}</span>
                     )}
