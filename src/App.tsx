@@ -678,7 +678,7 @@ function HubSection({
           onChange={(e) => onSort(e.target.value as BacklogSort)}
           aria-label="백로그 정렬"
         >
-          <option value="stale">오래 묵은 순</option>
+          <option value="stale">방치 오래된 순</option>
           <option value="name">이름순</option>
         </select>
       </h2>

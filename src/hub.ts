@@ -28,7 +28,7 @@ export function staleOf(p: HubProject, now: number): number {
 }
 
 /**
- * 방치순은 오래 묵은 프로젝트가 위로 온다 — 주간 정리에서 훑을 순서다.
+ * 방치가 오래된 프로젝트가 위로 온다 — 주간 정리에서 훑을 순서다.
  * 같은 나이면 이름순으로 갈라 순서가 새로고침마다 흔들리지 않게 한다.
  */
 export function sortProjects(

@@ -19,7 +19,7 @@ describe("방치 나이", () => {
     expect(ageDays(undefined, NOW)).toBe(0);
   });
 
-  it("프로젝트 나이는 가장 오래 묵은 항목 기준", () => {
+  it("프로젝트 나이는 가장 오래 방치된 항목 기준", () => {
     expect(staleOf(project("a", 3, 40, 10), NOW)).toBe(40);
     expect(staleOf({ slug: "b", title: "b", items: [] }, NOW)).toBe(0);
   });
@@ -34,7 +34,7 @@ describe("방치 나이", () => {
 describe("프로젝트 정렬", () => {
   const projects = [project("가", 5), project("나", 100), project("다", 40)];
 
-  it("방치순은 오래 묵은 것부터", () => {
+  it("방치 오래된 것부터", () => {
     expect(sortProjects(projects, "stale", NOW).map((p) => p.title)).toEqual(["나", "다", "가"]);
   });
 
