@@ -31,6 +31,8 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const today = todayInSeoul();
+  // 화면 폭은 세션 중에 거의 안 바뀌므로 처음 한 번만 본다
+  const [wide] = useState(() => window.matchMedia("(min-width: 980px)").matches);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -95,33 +97,41 @@ export default function App() {
         </div>
       )}
 
-      <AddForm today={today} hub={hub} onAdded={() => void load()} />
+      <div className="layout">
+        <div className="col-todos">
+          <AddForm today={today} hub={hub} onAdded={() => void load()} />
 
-      {urgent.length > 0 && (
-        <section className="urgent">
-          <h2>지금 볼 것</h2>
-          {urgent.map((t) => (
-            <Row key={t.number} todo={t} today={today} onChanged={() => void load()} />
-          ))}
-        </section>
-      )}
+          {urgent.length > 0 && (
+            <section className="urgent">
+              <h2>지금 볼 것</h2>
+              {urgent.map((t) => (
+                <Row key={t.number} todo={t} today={today} onChanged={() => void load()} />
+              ))}
+            </section>
+          )}
 
-      {SECTIONS.map((name) => {
-        const rows = sorted.filter((t) => t.category === name);
-        if (!rows.length) return null;
-        return (
-          <section key={name}>
-            <h2>
-              {name} <span className="count">{rows.length}</span>
-            </h2>
-            {rows.map((t) => (
-              <Row key={t.number} todo={t} today={today} onChanged={() => void load()} />
-            ))}
-          </section>
-        );
-      })}
+          {SECTIONS.map((name) => {
+            const rows = sorted.filter((t) => t.category === name);
+            if (!rows.length) return null;
+            return (
+              <section key={name}>
+                <h2>
+                  {name} <span className="count">{rows.length}</span>
+                </h2>
+                {rows.map((t) => (
+                  <Row key={t.number} todo={t} today={today} onChanged={() => void load()} />
+                ))}
+              </section>
+            );
+          })}
+        </div>
 
-      {hub && hub.projects.length > 0 && <HubSection hub={hub} />}
+        {hub && hub.projects.length > 0 && (
+          <aside className="col-hub">
+            <HubSection hub={hub} wide={wide} />
+          </aside>
+        )}
+      </div>
 
       <footer>
         <NotifyToggle />
@@ -215,7 +225,7 @@ function AddForm({
     <form className="add" onSubmit={submit}>
       <input
         value={title}
-        placeholder="무엇을?"
+        placeholder="새 할 일"
         onChange={(e) => setTitle(e.target.value)}
         enterKeyHint="done"
       />
@@ -346,7 +356,16 @@ function Row({
           >
             {todo.priority === "보통" ? "·" : todo.priority}
           </button>
-          {todo.project && <span className="tag">{todo.project}</span>}
+          {todo.project && (
+            <a
+              className="tag"
+              href={hubUrl(todo.project)}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {todo.project}
+            </a>
+          )}
           {todo.inProgress && <span className="tag">진행중</span>}
           {state && <span className={`due ${state}`}>{dueLabel(todo.due!, state)}</span>}
           {origin &&
@@ -373,6 +392,15 @@ function dueLabel(due: string, state: NonNullable<ReturnType<typeof dueState>>) 
 
 const DAY = 86400000;
 
+/** HUB 원문은 마크다운이라 강조 기호가 평문 렌더에서 날것으로 보인다. 벗겨낸다. */
+function tidy(text: string): string {
+  return text.replace(/\*\*/g, "").replace(/`/g, "").replace(/·/g, ", ");
+}
+
+function hubUrl(slug: string) {
+  return `https://github.com/zoona/working/blob/main/projects/${slug}/HUB.md`;
+}
+
 function ageDays(date: string | null | undefined): number {
   return date ? Math.floor((Date.now() - Date.parse(date)) / DAY) : 0;
 }
@@ -383,7 +411,7 @@ function staleLabel(days: number): string {
   return `${Math.floor(days / 7)}주 방치`;
 }
 
-function HubSection({ hub }: { hub: HubFile }) {
+function HubSection({ hub, wide }: { hub: HubFile; wide: boolean }) {
   // 정리 판단용 신호: 프로젝트마다 가장 오래 방치된 항목 기준으로 요약에도 띄운다
   const staleOf = (p: HubFile["projects"][number]) =>
     Math.max(0, ...p.items.map((i) => ageDays(i.date)));
@@ -394,17 +422,34 @@ function HubSection({ hub }: { hub: HubFile }) {
       {hub.projects.map((p) => {
         const stale = staleOf(p);
         return (
-        <details key={p.slug}>
+        <details key={p.slug} open={wide}>
           <summary>
-            {p.title} <span className="count">{p.items.length}</span>
+            {tidy(p.title)} <span className="count">{p.items.length}</span>
             {stale >= 21 && <span className="age stale">{staleLabel(stale)}</span>}
+            <a
+              className="hub-open"
+              href={hubUrl(p.slug)}
+              target="_blank"
+              rel="noreferrer"
+              aria-label="HUB 문서 열기"
+              onClick={(e) => e.stopPropagation()}
+            >
+              ↗
+            </a>
           </summary>
           <ul>
             {p.items.map((item, i) => {
               const days = ageDays(item.date);
               return (
-                <li key={i} style={{ marginLeft: item.depth * 12 }}>
-                  {item.text}
+                // 모바일에서는 두 줄로 접고 누르면 펼친다. 항목이 문단 길이인 게 많다.
+                // (재렌더 시 접힘으로 돌아가는 건 감수 — 상태 배열보다 싸다)
+                <li
+                  key={i}
+                  className="hub-item"
+                  style={{ marginLeft: item.depth * 12 }}
+                  onClick={(e) => e.currentTarget.classList.toggle("expanded")}
+                >
+                  {tidy(item.text)}
                   {days >= 7 && (
                     <span className={days >= 21 ? "age stale" : "age"}>{since(item.date!)}</span>
                   )}
