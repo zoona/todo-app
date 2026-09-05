@@ -439,6 +439,17 @@ a.tag {
   display: block;
 }
 
+/* 좁은 화면은 한 줄에 담기는 양이 절반이라 세 줄까지 보여준다 */
+@media (max-width: 979px) {
+  .hub-text {
+    -webkit-line-clamp: 3;
+  }
+
+  .hub-item {
+    gap: 8px;
+  }
+}
+
 .hub-item .age {
   margin-left: 0;
 }
