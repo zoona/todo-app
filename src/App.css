@@ -451,3 +451,23 @@ a.tag {
     font-size: 13px;
   }
 }
+
+.manual-token {
+  margin-top: 16px;
+}
+
+.manual-token summary {
+  color: var(--dim);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.manual-token p {
+  color: var(--dim);
+  font-size: 14px;
+  margin: 8px 0;
+}
+
+.manual-token input {
+  margin-bottom: 8px;
+}

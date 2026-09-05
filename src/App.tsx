@@ -19,6 +19,14 @@ import {
   type Priority,
   type Todo,
 } from "./types";
+import {
+  cleanCallbackUrl,
+  consumeState,
+  exchangeCode,
+  loginReady,
+  parseCallback,
+  startLogin,
+} from "./auth";
 import { NotifyToggle } from "./NotifyToggle";
 import "./App.css";
 
@@ -59,6 +67,23 @@ export default function App() {
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  // GitHub 로그인 콜백이면 code를 토큰으로 바꾼다. 마운트 때 한 번.
+  useEffect(() => {
+    const cb = parseCallback(location.search);
+    if (!cb) return;
+    cleanCallbackUrl();
+    if (!consumeState(cb.state)) {
+      setError("로그인 확인값이 맞지 않습니다. 다시 로그인해 주세요.");
+      return;
+    }
+    exchangeCode(cb.code)
+      .then((token) => {
+        setToken(token);
+        setAuthed(true);
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : String(err)));
   }, []);
 
   useEffect(() => {
@@ -151,14 +176,12 @@ export default function App() {
 
 function TokenGate({ onSaved, error }: { onSaved: () => void; error: string | null }) {
   const [value, setValue] = useState("");
-  return (
-    <div className="app gate">
-      <h1>할 일</h1>
+  const manual = (
+    <>
       <p>
         <code>zoona/todo</code> 하나만 고른 fine-grained 토큰을 붙여넣으세요. 권한은
-        Issues 읽기·쓰기와 Contents 읽기. 이 브라우저에만 저장됩니다.
+        Issues 읽기와 쓰기, Contents 읽기. 이 브라우저에만 저장됩니다.
       </p>
-      {error && <p className="error">{error}</p>}
       <input
         type="password"
         value={value}
@@ -175,6 +198,27 @@ function TokenGate({ onSaved, error }: { onSaved: () => void; error: string | nu
       >
         저장
       </button>
+    </>
+  );
+
+  return (
+    <div className="app gate">
+      <h1>할 일</h1>
+      {error && <p className="error">{error}</p>}
+      {loginReady() ? (
+        <>
+          <button className="primary" onClick={startLogin}>
+            GitHub로 로그인
+          </button>
+          <p className="hint">할 일이 담긴 zoona/todo에 접근을 승인하는 것뿐입니다.</p>
+          <details className="manual-token">
+            <summary>토큰으로 직접 넣기</summary>
+            {manual}
+          </details>
+        </>
+      ) : (
+        manual
+      )}
     </div>
   );
 }
