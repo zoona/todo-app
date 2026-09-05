@@ -48,3 +48,9 @@ npx vitest run
 ## 설계
 
 `zoona/working`의 `projects/task-dashboard/design/2026-09-05-웹앱-설계.md`.
+
+## 타입 검사는 `npm run build`로
+
+루트 `tsconfig.json`은 `files: []`에 프로젝트 참조만 있어서 `tsc --noEmit`은
+**아무 파일도 검사하지 않고 통과한다.** 실제 검사는 `tsc -b`이고, 그건
+`npm run build`가 한다.
