@@ -2,21 +2,17 @@ import { describe, expect, it } from "vitest";
 import { hostLabel, readOrigin, since } from "./devices";
 
 describe("hostLabel", () => {
-  it("아는 장비는 사람이 읽을 이름으로", () => {
-    expect(hostLabel("Vosne-Romanee.local")).toBe("집 맥");
-    expect(hostLabel("Vosne-Romanee")).toBe("집 맥");
-    expect(hostLabel("lambray")).toBe("서피스");
-  });
-
-  it("모르는 장비는 .local만 떼고 그대로", () => {
-    expect(hostLabel("some-host.local")).toBe("some-host");
+  it("hostname을 그대로 보여준다. .local만 뗀다", () => {
+    expect(hostLabel("Vosne-Romanee.local")).toBe("Vosne-Romanee");
+    expect(hostLabel("Vosne-Romanee")).toBe("Vosne-Romanee");
+    expect(hostLabel("lambray")).toBe("lambray");
   });
 });
 
 describe("readOrigin", () => {
   it("장비와 세션을 가른다", () => {
     expect(readOrigin("Vosne-Romanee.local — 세션 https://claude.ai/code/session_017x")).toEqual({
-      label: "집 맥",
+      label: "Vosne-Romanee",
       session: "https://claude.ai/code/session_017x",
     });
   });
@@ -27,7 +23,7 @@ describe("readOrigin", () => {
   });
 
   it("세션 자리에 링크가 아닌 게 오면 링크로 안 만든다", () => {
-    expect(readOrigin("lambray — 세션 abc123")).toEqual({ label: "서피스", session: null });
+    expect(readOrigin("lambray — 세션 abc123")).toEqual({ label: "lambray", session: null });
   });
 
   it("없으면 null", () => {

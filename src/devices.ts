@@ -1,27 +1,21 @@
 /**
- * 출처 줄을 사람이 읽을 형태로 바꾼다.
+ * 출처 줄을 목록에 보일 형태로 가른다.
  *
- * 이슈 본문에는 hostname 원본이 들어간다. 이름을 나중에 고쳐도 옛 이슈가 같이
- * 따라오게 하려는 것이라, 사람이 읽을 이름으로 바꾸는 건 여기서 한다.
+ * 장비는 hostname을 그대로 보여준다. 별명으로 바꾸면 표를 계속 손봐야 하고
+ * 새 장비는 어차피 표에 없어서 hostname이 나온다. 이름은 소유자가 안다.
  */
-
-export const DEVICES: Record<string, string> = {
-  "Vosne-Romanee": "집 맥",
-  lambray: "서피스",
-};
 
 const SESSION_MARK = "— 세션";
 
 export type Origin = {
-  /** 사람이 읽을 이름. 표에 없으면 hostname 그대로 */
+  /** 장비 이름. hostname 그대로, .local만 뗀다 */
   label: string;
   /** 세션 링크. 없으면 null */
   session: string | null;
 };
 
 export function hostLabel(host: string): string {
-  const short = host.replace(/\.local$/, "");
-  return DEVICES[short] ?? short;
+  return host.replace(/\.local$/, "");
 }
 
 /** `출처:` 줄의 내용을 (이름, 세션)으로 가른다. */
