@@ -40,8 +40,8 @@ export default function App() {
       localStorage.setItem("todo.cache", JSON.stringify({ list, hubFile }));
     } catch (err) {
       if (err instanceof AuthError) {
-        setAuthed(false);
-        clearToken();
+        // 토큰을 지우지 않는다. 권한만 고치면 되는 경우가 많은데,
+        // 지워버리면 GitHub가 값을 한 번만 보여주므로 재발급까지 가게 된다.
         setError(err.message);
       } else {
         setError(err instanceof Error ? err.message : String(err));
@@ -84,7 +84,14 @@ export default function App() {
         </button>
       </header>
 
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <div className="error-box">
+          <p className="error">{error}</p>
+          <p className="hint">
+            권한을 고쳤다면 새로고침만 하면 됩니다. 토큰 값은 그대로입니다.
+          </p>
+        </div>
+      )}
 
       <AddForm today={today} hub={hub} onAdded={() => void load()} />
 

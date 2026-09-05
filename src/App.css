@@ -333,3 +333,21 @@ select {
   opacity: 0.35;
   padding: 1px 6px;
 }
+
+.error-box {
+  background: var(--card);
+  border: 1px solid var(--red);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+
+.error-box p {
+  margin: 0;
+}
+
+.hint {
+  font-size: 12px;
+  color: var(--dim);
+  margin-top: 4px !important;
+}
