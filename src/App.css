@@ -234,15 +234,22 @@ input {
   font-size: 15px;
 }
 
+/* 항목 글자는 본문 색으로. --dim은 날짜 같은 메타데이터에만 쓴다 —
+   본문까지 회색이면 두 줄짜리 항목 20개가 통째로 안 읽힌다. */
 .hub ul {
-  margin: 8px 0 0;
-  padding-left: 18px;
-  color: var(--dim);
+  margin: 10px 0 0;
+  padding-left: 0;
+  list-style: none;
   font-size: 14px;
+  line-height: 1.65;
 }
 
 .hub li {
-  margin-bottom: 4px;
+  margin-bottom: 12px;
+}
+
+.hub li:last-child {
+  margin-bottom: 0;
 }
 
 .stamp,
@@ -411,12 +418,17 @@ a.tag {
   cursor: pointer;
   display: flex;
   align-items: baseline;
-  gap: 6px;
+  gap: 12px;
+  color: var(--text);
 }
 
 .hub-text {
   flex: 1;
   min-width: 0;
+  /* 내어쓰기 — 첫 줄은 왼쪽 끝, 이어지는 줄은 들여쓴다. 두 줄짜리 항목에서
+     둘째 줄과 다음 항목 첫 줄이 헷갈리지 않게 하는 것. */
+  padding-left: 14px;
+  text-indent: -14px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -453,9 +465,6 @@ a.tag {
     margin-top: 16px;
   }
 
-  .hub-item {
-    font-size: 13px;
-  }
 }
 
 .manual-token {
