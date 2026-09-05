@@ -4,7 +4,7 @@ compatibility_date = "2026-09-01"
 
 # CLIENT_ID는 공개값이라 여기 둔다. GitHub App 등록 후 채운다.
 [vars]
-CLIENT_ID = ""
+CLIENT_ID = "Iv23licUjzfD7wEKnauT"
 
 # CLIENT_SECRET은 배포 후 이 명령으로 넣는다 (파일에 적지 않는다):
 #   npx wrangler secret put CLIENT_SECRET

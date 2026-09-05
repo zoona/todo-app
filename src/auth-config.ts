@@ -4,6 +4,6 @@
  * 비밀(client_secret)은 Worker에만 있다.
  */
 export const AUTH = {
-  clientId: "",
-  workerUrl: "",
+  clientId: "Iv23licUjzfD7wEKnauT",
+  workerUrl: "https://todo-login.zoona.workers.dev",
 };
