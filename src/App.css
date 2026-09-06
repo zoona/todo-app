@@ -714,6 +714,12 @@ a.tag {
   border-color: var(--red);
 }
 
+/* 되돌리기 확인 — 실행하는 쪽만 색을 준다. 취소가 기본으로 보이게. */
+.undo.confirm {
+  color: var(--red);
+  border-color: var(--red);
+}
+
 /* 끝낸 것의 출처 — 백로그에서 왔는지 이슈에서 왔는지.
    바로 뒤 링크와 한 덩어리로 읽히게 붙여 둔다. */
 .kind {
@@ -742,4 +748,54 @@ a.tag {
 /* 되돌리기만 테두리를 남긴다 — 여기서 유일하게 무언가를 바꾸는 것 */
 .done-row .undo {
   margin-left: 2px;
+}
+
+/* 끝낸 것 한 줄의 세 층 — 라벨, 링크, 버튼.
+   링크는 이동이고 버튼은 실행이라 스크린리더가 다르게 읽는다. 겉모습도 갈라야
+   눌러보기 전에 무엇인지 안다. 라벨은 아무 표시도 주지 않는다. */
+.done-row .meta {
+  gap: 10px;
+}
+
+/* 라벨 — 정보일 뿐, 누를 수 없다 */
+.done-when {
+  font-size: 12px;
+  color: var(--dim);
+  opacity: 0.8;
+}
+
+/* 링크 — 밑줄이 곧 "여기를 눌러 다른 곳으로 간다"는 표시.
+   한 줄에 하나만 두고, 글자가 도착지를 그대로 말한다. */
+.go {
+  font-size: 12px;
+  color: var(--dim);
+  text-decoration: underline;
+  text-decoration-color: var(--line);
+  text-underline-offset: 3px;
+  white-space: nowrap;
+}
+
+.go:hover {
+  color: var(--text);
+  text-decoration-color: currentColor;
+}
+
+/* 버튼 — 테두리가 곧 "누르면 무언가 바뀐다"는 표시. 오른쪽 끝으로 민다. */
+.act {
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--dim);
+  margin-bottom: 0;
+}
+
+.act:first-of-type {
+  margin-left: auto;
+}
+
+.act.danger {
+  color: var(--red);
+  border-color: var(--red);
 }

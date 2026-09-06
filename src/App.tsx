@@ -825,40 +825,35 @@ function DoneRow({ entry, onReopened }: { entry: DoneEntry; onReopened: () => vo
   return (
     <div className="done-row">
       <div className="done-title">{tidy(entry.title)}</div>
+      {/* 세 층을 겉모습으로 가른다. 라벨은 아무 표시 없음, 링크는 밑줄,
+          버튼은 테두리. 링크는 한 줄에 하나만 두고 글자가 도착지를 말한다. */}
       <div className="meta">
-        {entry.at && <span className="tag when">{since(entry.at)}</span>}
+        {entry.at && <span className="done-when">{since(entry.at)}</span>}
 
-        {/* 출처를 적어 둔다. 열린 목록의 프로젝트 칩과 모양이 같아서, 안 적으면
-            "연결된 프로젝트"로 읽힌다. 여기서는 "그 프로젝트 백로그에서 온 것"이다. */}
         {entry.project && (
-          <>
-            <span className="kind">백로그</span>
-            <a className="tag project" href={hubUrl(entry.project.slug)} target="_blank" rel="noreferrer">
-              {tidy(entry.project.title)} ↗
-            </a>
-          </>
+          <a className="go" href={hubUrl(entry.project.slug)} target="_blank" rel="noreferrer">
+            {tidy(entry.project.title)} 백로그 ↗
+          </a>
         )}
         {entry.todo && (
-          <>
-            <span className="kind">이슈</span>
-            <a className="tag when" href={entry.todo.url} target="_blank" rel="noreferrer">
-              #{entry.todo.number}
-              {entry.todo.comments > 0 ? ` 댓글 ${entry.todo.comments}` : ""} ↗
-            </a>
-          </>
+          <a className="go" href={entry.todo.url} target="_blank" rel="noreferrer">
+            이슈 #{entry.todo.number}
+            {entry.todo.comments > 0 ? ` (댓글 ${entry.todo.comments})` : ""} ↗
+          </a>
         )}
+
         {entry.todo &&
           (asking ? (
             <>
-              <button className="ghost undo confirm" disabled={busy} onClick={() => void reopen()}>
+              <button className="act danger" disabled={busy} onClick={() => void reopen()}>
                 {busy ? "여는 중" : "다시 열기"}
               </button>
-              <button className="ghost undo" disabled={busy} onClick={() => setAsking(false)}>
+              <button className="act" disabled={busy} onClick={() => setAsking(false)}>
                 취소
               </button>
             </>
           ) : (
-            <button className="ghost undo" disabled={busy} onClick={() => setAsking(true)}>
+            <button className="act" disabled={busy} onClick={() => setAsking(true)}>
               되돌리기
             </button>
           ))}
