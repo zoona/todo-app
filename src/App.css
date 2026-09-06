@@ -706,3 +706,16 @@ a.tag {
   color: var(--dim);
   margin-bottom: 0;
 }
+
+/* 되돌리기 확인 — 실행하는 쪽만 색을 준다. 취소가 기본으로 보이게. */
+.undo.confirm {
+  color: var(--red);
+  border-color: var(--red);
+}
+
+/* 끝낸 것의 출처 — 백로그에서 왔는지 이슈에서 왔는지 */
+.kind {
+  font-size: 11px;
+  color: var(--dim);
+  opacity: 0.75;
+}

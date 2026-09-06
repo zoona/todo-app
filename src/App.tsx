@@ -801,9 +801,18 @@ function DoneSection({
 
 function DoneRow({ entry, onReopened }: { entry: DoneEntry; onReopened: () => void }) {
   const [busy, setBusy] = useState(false);
+  // 한 번 눌러 묻고 다시 눌러야 실행한다. 목록을 훑다가 스쳐도 열리지 않게.
+  const [asking, setAsking] = useState(false);
+
+  useEffect(() => {
+    if (!asking) return;
+    const t = setTimeout(() => setAsking(false), 5000);
+    return () => clearTimeout(t);
+  }, [asking]);
 
   async function reopen() {
     if (!entry.todo) return;
+    setAsking(false);
     setBusy(true);
     try {
       await reopenTodo(entry.todo);
@@ -818,21 +827,41 @@ function DoneRow({ entry, onReopened }: { entry: DoneEntry; onReopened: () => vo
       <div className="done-title">{tidy(entry.title)}</div>
       <div className="meta">
         {entry.at && <span className="tag when">{since(entry.at)}</span>}
+
+        {/* 출처를 적어 둔다. 열린 목록의 프로젝트 칩과 모양이 같아서, 안 적으면
+            "연결된 프로젝트"로 읽힌다. 여기서는 "그 프로젝트 백로그에서 온 것"이다. */}
         {entry.project && (
-          <a className="tag project" href={hubUrl(entry.project.slug)} target="_blank" rel="noreferrer">
-            {tidy(entry.project.title)}
-          </a>
+          <>
+            <span className="kind">백로그</span>
+            <a className="tag project" href={hubUrl(entry.project.slug)} target="_blank" rel="noreferrer">
+              {tidy(entry.project.title)} ↗
+            </a>
+          </>
         )}
         {entry.todo && (
-          <a className="tag when" href={entry.todo.url} target="_blank" rel="noreferrer">
-            {entry.todo.comments > 0 ? `댓글 ${entry.todo.comments}` : "이슈"} ↗
-          </a>
+          <>
+            <span className="kind">이슈</span>
+            <a className="tag when" href={entry.todo.url} target="_blank" rel="noreferrer">
+              #{entry.todo.number}
+              {entry.todo.comments > 0 ? ` 댓글 ${entry.todo.comments}` : ""} ↗
+            </a>
+          </>
         )}
-        {entry.todo && (
-          <button className="ghost undo" disabled={busy} onClick={() => void reopen()}>
-            되돌리기
-          </button>
-        )}
+        {entry.todo &&
+          (asking ? (
+            <>
+              <button className="ghost undo confirm" disabled={busy} onClick={() => void reopen()}>
+                {busy ? "여는 중" : "다시 열기"}
+              </button>
+              <button className="ghost undo" disabled={busy} onClick={() => setAsking(false)}>
+                취소
+              </button>
+            </>
+          ) : (
+            <button className="ghost undo" disabled={busy} onClick={() => setAsking(true)}>
+              되돌리기
+            </button>
+          ))}
       </div>
     </div>
   );
