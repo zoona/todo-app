@@ -192,6 +192,7 @@ input {
 
 .meta {
   display: flex;
+  align-items: center;
   gap: 6px;
   margin-top: 4px;
   flex-wrap: wrap;
@@ -713,9 +714,32 @@ a.tag {
   border-color: var(--red);
 }
 
-/* 끝낸 것의 출처 — 백로그에서 왔는지 이슈에서 왔는지 */
+/* 끝낸 것의 출처 — 백로그에서 왔는지 이슈에서 왔는지.
+   바로 뒤 링크와 한 덩어리로 읽히게 붙여 둔다. */
 .kind {
   font-size: 11px;
   color: var(--dim);
-  opacity: 0.75;
+  opacity: 0.6;
+  margin-right: -2px;
+}
+
+/* 끝낸 것의 링크는 조용한 텍스트로. 열린 목록의 파란 pill은 "눌러서 바꾼다"는
+   표시라 여기 뜻과 다르고, 줄마다 있으면 목록이 시끄럽다. */
+.done-row .tag.project {
+  color: var(--dim);
+  border-color: transparent;
+  background: transparent;
+  padding-left: 0;
+  padding-right: 0;
+  text-decoration: none;
+}
+
+.done-row .tag.project:hover,
+.done-row .tag.when:hover {
+  text-decoration: underline;
+}
+
+/* 되돌리기만 테두리를 남긴다 — 여기서 유일하게 무언가를 바꾸는 것 */
+.done-row .undo {
+  margin-left: 2px;
 }
