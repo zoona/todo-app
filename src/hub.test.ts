@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ageDays, isPulled, sortProjects, splitItem, staleLabel, staleOf } from "./hub";
+import { ageDays, isPulled, pullTitle, sortProjects, splitItem, staleLabel, staleOf } from "./hub";
 import type { HubProject } from "./types";
 
 const NOW = Date.parse("2026-09-06T00:00:00Z");
@@ -103,5 +103,23 @@ describe("isPulled", () => {
 
   it("프로젝트에 안 붙은 이슈와는 안 묶인다", () => {
     expect(isPulled("브랜드 범위 확인", "ai-design-system", todos)).toBe(false);
+  });
+});
+
+describe("pullTitle", () => {
+  it("짧은 항목도 앞머리만 뗀다 — 화면에서는 안 가르는 길이라도", () => {
+    const t = "GitHub 이슈 가이드를 팀에 배포 — 노션 게시(사전 확인 필요)와 덱 공유";
+    expect(t.length).toBeLessThanOrEqual(45); // splitItem은 이 길이를 안 가른다
+    expect(splitItem(t).head).toBe(t);
+    expect(pullTitle(t)).toBe("GitHub 이슈 가이드를 팀에 배포");
+  });
+
+  it("긴 항목은 splitItem과 같은 앞머리", () => {
+    const t = "디자인 시스템을 팀에 배포 — 토큰, 스킬, 레지스트리를 팀이 가져다 쓸 수 있게 넘기고 쓰는 법 알리기";
+    expect(pullTitle(t)).toBe(splitItem(t).head);
+  });
+
+  it("구분자가 없으면 통째로", () => {
+    expect(pullTitle("client:cswind 축 처리")).toBe("client:cswind 축 처리");
   });
 });

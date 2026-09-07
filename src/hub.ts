@@ -67,12 +67,27 @@ const SEPARATOR = /\s+—\s+|:\s+|\s+(?=\()|\.\s+/;
 const SHORT_ENOUGH = 45;
 const HEAD_MIN = 3;
 
+/** 구분자 위치. 앞머리가 너무 짧거나 구분자가 늦게 오면 안 가른다. */
+function cut(text: string): { end: number; restAt: number } | null {
+  const m = SEPARATOR.exec(text);
+  if (!m || m.index < HEAD_MIN || m.index > SHORT_ENOUGH) return null;
+  return { end: m.index, restAt: m.index + m[0].length };
+}
+
 export function splitItem(text: string): { head: string; rest: string } {
   if (text.length <= SHORT_ENOUGH) return { head: text, rest: "" };
-  const m = SEPARATOR.exec(text);
-  if (!m || m.index < HEAD_MIN || m.index > SHORT_ENOUGH) return { head: text, rest: "" };
-  return {
-    head: text.slice(0, m.index).trim(),
-    rest: text.slice(m.index + m[0].length).trim(),
-  };
+  const c = cut(text);
+  if (!c) return { head: text, rest: "" };
+  return { head: text.slice(0, c.end).trim(), rest: text.slice(c.restAt).trim() };
+}
+
+/**
+ * 끌어올 때 쓸 이슈 제목.
+ *
+ * 화면용 splitItem과 달리 길이를 안 따진다. 짧은 항목이라고 상세까지 제목에 넣으면
+ * 목록에서 그 줄만 길어지고, 나중에 상세를 다듬는 순간 제목이 달라져 연결도 끊긴다.
+ */
+export function pullTitle(text: string): string {
+  const c = cut(text);
+  return c ? text.slice(0, c.end).trim() : text;
 }

@@ -29,7 +29,7 @@ import {
   type BacklogSort,
 } from "./config";
 import { fromHub, fromTodos, splitByRecency, type DoneEntry } from "./done";
-import { ageDays, isPulled, sortProjects, splitItem, staleLabel, staleOf } from "./hub";
+import { ageDays, isPulled, pullTitle, sortProjects, splitItem, staleLabel, staleOf } from "./hub";
 import { compareTodos, dueState, todayInSeoul } from "./parse";
 import { readOrigin, since } from "./devices";
 import { UNSORTED, type HubFile, type Priority, type Todo } from "./types";
@@ -820,6 +820,8 @@ function HubSection({
               {p.items.map((item, i) => {
                 const days = ageDays(item.date, now);
                 const { head, rest } = splitItem(tidy(item.text));
+                // 제목은 화면에 보이는 앞머리가 아니라 끌어오기용으로 따로 뽑는다
+                const title = pullTitle(tidy(item.text));
                 return (
                   // 모바일에서는 두 줄로 접고 누르면 펼친다. 항목이 문단 길이인 게 많다.
                   <li
@@ -833,7 +835,7 @@ function HubSection({
                       {rest && <div className="hub-rest">{rest}</div>}
                     </div>
                     {/* 실행 줄로 올릴 자리. 이미 올라간 것은 버튼 대신 표시만 남긴다. */}
-                    {isPulled(head, p.slug, todos) ? (
+                    {isPulled(title, p.slug, todos) ? (
                       <span className="pulled">실행 중</span>
                     ) : (
                       <button
@@ -841,10 +843,10 @@ function HubSection({
                         disabled={pulling !== null}
                         onClick={(e) => {
                           e.stopPropagation(); // 누르면 항목이 펼쳐지는 걸 막는다
-                          onPull(p.slug, head);
+                          onPull(p.slug, title);
                         }}
                       >
-                        {pulling === `${p.slug}:${head}` ? "올리는 중" : "끌어오기"}
+                        {pulling === `${p.slug}:${title}` ? "올리는 중" : "끌어오기"}
                       </button>
                     )}
                     {days >= 7 && (
