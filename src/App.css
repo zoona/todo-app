@@ -176,12 +176,13 @@ input {
   cursor: pointer;
 }
 
-/* 끝낸 것은 목록에 남기고 줄을 긋는다. 다시 누르면 되돌아간다. */
-.row.done {
+/* 체크한 것은 목록에 남기고 줄을 긋는다. 다시 누르면 되돌아간다.
+   클래스 이름이 done이 아닌 이유는 아래 "끝낸 것" 섹션이 그 이름을 쓰고 있어서다. */
+.row.checked {
   opacity: 0.5;
 }
 
-.row.done a {
+.row.checked a {
   text-decoration: line-through;
   color: var(--dim);
 }
@@ -652,8 +653,9 @@ a.tag {
   margin-left: 0;
 }
 
-/* 끝낸 것 — 평소엔 접혀 있다. 되짚어 볼 자리지 매일 보는 목록이 아니다. */
-.done {
+/* 끝낸 것 — 평소엔 접혀 있다. 되짚어 볼 자리지 매일 보는 목록이 아니다.
+   선택자를 details로 좁힌다. 맨 클래스로 두면 done이 붙은 다른 것까지 이 여백을 물려받는다. */
+details.done {
   margin-top: 20px;
   border-top: 1px solid var(--line);
   padding-top: 12px;

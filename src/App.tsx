@@ -557,7 +557,7 @@ function Row({
   const locked = busy || done;
 
   return (
-    <div className={`row${busy ? " busy" : ""}${done ? " done" : ""}${todo.project ? " linked" : ""}`}>
+    <div className={`row${busy ? " busy" : ""}${done ? " checked" : ""}${todo.project ? " linked" : ""}`}>
       <input
         type="checkbox"
         className="check"
