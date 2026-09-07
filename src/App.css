@@ -570,6 +570,31 @@ a.tag {
 }
 
 /* 백로그에서 실행 줄로 끌어온 게 있는 프로젝트 표시 */
+/* 백로그 항목을 실행 줄로 올리는 버튼. 평소엔 숨어 있다가 그 줄에 손이 갈 때 나온다. */
+.pull {
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border-style: dashed;
+  color: var(--dim);
+  background: transparent;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.hub-item:hover .pull,
+.hub-item:focus-within .pull {
+  opacity: 1;
+}
+
+/* 모바일은 hover가 없으니 항상 보이게 */
+@media (max-width: 979px) {
+  .pull {
+    opacity: 0.6;
+  }
+}
+
 .pulled {
   font-size: 11px;
   color: var(--accent);

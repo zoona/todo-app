@@ -29,7 +29,7 @@ import {
   type BacklogSort,
 } from "./config";
 import { fromHub, fromTodos, splitByRecency, type DoneEntry } from "./done";
-import { ageDays, sortProjects, splitItem, staleLabel, staleOf } from "./hub";
+import { ageDays, isPulled, sortProjects, splitItem, staleLabel, staleOf } from "./hub";
 import { compareTodos, dueState, todayInSeoul } from "./parse";
 import { readOrigin, since } from "./devices";
 import { UNSORTED, type HubFile, type Priority, type Todo } from "./types";
@@ -52,6 +52,8 @@ export default function App() {
   const [closed, setClosed] = useState<Todo[]>([]);
   // 체크한 항목은 목록에 남겨두고 줄만 긋는다. 눌러서 되돌릴 자리를 남기려는 것.
   const [checked, setChecked] = useState<Set<number>>(() => new Set());
+  // 끌어오는 중인 백로그 항목 하나. 같은 것을 두 번 누르는 걸 막는다.
+  const [pulling, setPulling] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const today = todayInSeoul();
@@ -161,6 +163,32 @@ export default function App() {
     }
   }, []);
 
+  /**
+   * 백로그 항목을 실행 줄로 끌어온다.
+   *
+   * HUB 줄은 그대로 두고 이슈만 새로 세운다. 미러가 아니라 단기 실행 티켓이라
+   * 주인은 계속 HUB다. 끝나면 이슈와 HUB 항목 양쪽을 닫아야 한다.
+   */
+  async function pullToRun(slug: string, title: string) {
+    setPulling(`${slug}:${title}`);
+    setError(null);
+    try {
+      await createTodo({
+        title,
+        category: config.categories[0] ?? null,
+        priority: "보통",
+        project: slug,
+        due: null,
+        origin: "백로그",
+      });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setPulling(null);
+    }
+  }
+
   /** 드래그 결과 반영 — 화면 먼저 바꾸고 저장은 뒤에서. */
   async function reorder(category: string, numbers: number[]) {
     const next = withOrder(config, category, numbers);
@@ -258,6 +286,8 @@ export default function App() {
               todos={todos}
               sort={config.backlogSort}
               onSort={(s) => void setBacklogSort(s)}
+              pulling={pulling}
+              onPull={(slug, title) => void pullToRun(slug, title)}
             />
           </aside>
         )}
@@ -737,12 +767,16 @@ function HubSection({
   todos,
   sort,
   onSort,
+  pulling,
+  onPull,
 }: {
   hub: HubFile;
   wide: boolean;
   todos: Todo[];
   sort: BacklogSort;
   onSort: (s: BacklogSort) => void;
+  pulling: string | null;
+  onPull: (slug: string, title: string) => void;
 }) {
   const now = Date.now();
   // 실행 줄로 끌어온 것이 있는 프로젝트 — 백로그와 실행의 연결이 여기서 보인다
@@ -798,6 +832,21 @@ function HubSection({
                       <div className="hub-head">{head}</div>
                       {rest && <div className="hub-rest">{rest}</div>}
                     </div>
+                    {/* 실행 줄로 올릴 자리. 이미 올라간 것은 버튼 대신 표시만 남긴다. */}
+                    {isPulled(head, p.slug, todos) ? (
+                      <span className="pulled">실행 중</span>
+                    ) : (
+                      <button
+                        className="pull"
+                        disabled={pulling !== null}
+                        onClick={(e) => {
+                          e.stopPropagation(); // 누르면 항목이 펼쳐지는 걸 막는다
+                          onPull(p.slug, head);
+                        }}
+                      >
+                        {pulling === `${p.slug}:${head}` ? "올리는 중" : "끌어오기"}
+                      </button>
+                    )}
                     {days >= 7 && (
                       <span className={days >= 21 ? "age stale" : "age"}>{since(item.date!)}</span>
                     )}

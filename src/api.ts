@@ -116,11 +116,13 @@ export async function createTodo(input: {
   priority: Priority;
   project: string | null;
   due: string | null;
+  /** 어디서 담겼는지. 백로그에서 끌어온 것과 직접 담은 것을 나중에 갈라 볼 수 있게. */
+  origin?: string;
 }): Promise<void> {
   const labels = [input.category, input.priority === "보통" ? null : input.priority].filter(
     (x): x is string => !!x,
   );
-  let body = withProject("출처: 웹앱", input.project);
+  let body = withProject(`출처: ${input.origin ?? "웹앱"}`, input.project);
   body = withDue(body, input.due);
   await call(`/repos/${REPO}/issues`, {
     method: "POST",

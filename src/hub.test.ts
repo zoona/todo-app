@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ageDays, sortProjects, splitItem, staleLabel, staleOf } from "./hub";
+import { ageDays, isPulled, sortProjects, splitItem, staleLabel, staleOf } from "./hub";
 import type { HubProject } from "./types";
 
 const NOW = Date.parse("2026-09-06T00:00:00Z");
@@ -84,5 +84,24 @@ describe("앞머리와 상세 가르기", () => {
   it("버전 번호의 점에서는 갈리지 않는다", () => {
     const t = "빌드 v0.1.8 릴리스에서 발견된 문제를 고쳐야 하고 그 다음 릴리스에 반영하기로 정했다";
     expect(splitItem(t).head).toBe(t);
+  });
+});
+
+describe("isPulled", () => {
+  const todos = [
+    { title: "팀에 배포", project: "ai-design-system" },
+    { title: "브랜드 범위 확인", project: null },
+  ];
+
+  it("같은 프로젝트에 같은 제목이 있으면 끌어온 것", () => {
+    expect(isPulled("팀에 배포", "ai-design-system", todos)).toBe(true);
+  });
+
+  it("제목이 같아도 프로젝트가 다르면 아니다", () => {
+    expect(isPulled("팀에 배포", "github-task-workflow", todos)).toBe(false);
+  });
+
+  it("프로젝트에 안 붙은 이슈와는 안 묶인다", () => {
+    expect(isPulled("브랜드 범위 확인", "ai-design-system", todos)).toBe(false);
   });
 });

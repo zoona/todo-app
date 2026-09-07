@@ -42,6 +42,21 @@ export function sortProjects(
 }
 
 /**
+ * 이 백로그 항목이 이미 실행 줄로 올라갔는지.
+ *
+ * 같은 프로젝트에 붙은 이슈 중 제목이 앞머리와 같은 것이 있으면 끌어온 것으로 본다.
+ * 줄 번호로 묶지 않는 이유는 HUB 문서를 고칠 때마다 번호가 밀려서다. 대신 문구를
+ * 다듬으면 연결이 끊기는데, 그때는 다시 끌어오면 되고 잘못 끌어왔으면 이슈만 닫으면 된다.
+ */
+export function isPulled(
+  head: string,
+  slug: string,
+  todos: { title: string; project: string | null }[],
+): boolean {
+  return todos.some((t) => t.project === slug && t.title === head);
+}
+
+/**
  * 항목을 앞머리와 상세로 가른다.
  *
  * HUB 항목은 대개 "앞머리 — 상세", "앞머리: 상세", "앞머리 (부연)" 꼴로 쓰여 있다.
