@@ -50,6 +50,8 @@ export default function App() {
   const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG);
   const [hub, setHub] = useState<HubFile | null>(null);
   const [closed, setClosed] = useState<Todo[]>([]);
+  // 체크한 항목은 목록에 남겨두고 줄만 긋는다. 눌러서 되돌릴 자리를 남기려는 것.
+  const [checked, setChecked] = useState<Set<number>>(() => new Set());
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const today = todayInSeoul();
@@ -67,6 +69,8 @@ export default function App() {
       setTodos(list);
       setConfig(cfg);
       setHub(hubFile);
+      // 새로 받아온 목록엔 닫힌 것이 없다. 남아 있던 체크 표시도 같이 비운다.
+      setChecked(new Set());
       localStorage.setItem("todo.cache", JSON.stringify({ list, cfg, hubFile }));
     } catch (err) {
       if (err instanceof AuthError) {
@@ -133,6 +137,30 @@ export default function App() {
     }
   }, [config]);
 
+  /**
+   * 체크 토글. 화면을 먼저 바꾸고 GitHub 이슈를 닫거나 다시 연다.
+   * 닫은 뒤 목록을 다시 받지 않는다 — 받으면 그 자리에서 사라져 되돌릴 수 없다.
+   */
+  const toggleDone = useCallback(async (todo: Todo, done: boolean) => {
+    const mark = (on: boolean) =>
+      setChecked((prev) => {
+        const next = new Set(prev);
+        if (on) next.add(todo.number);
+        else next.delete(todo.number);
+        return next;
+      });
+
+    mark(done);
+    setError(null);
+    try {
+      if (done) await closeTodo(todo.number);
+      else await reopenTodo(todo);
+    } catch (err) {
+      mark(!done); // GitHub에 안 닿았으면 화면도 되돌린다
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }, []);
+
   /** 드래그 결과 반영 — 화면 먼저 바꾸고 저장은 뒤에서. */
   async function reorder(category: string, numbers: number[]) {
     const next = withOrder(config, category, numbers);
@@ -179,7 +207,15 @@ export default function App() {
             <section className="urgent">
               <h2>지금 볼 것</h2>
               {urgent.map((t) => (
-                <Row key={t.number} todo={t} today={today} hub={hub} onChanged={() => void load()} />
+                <Row
+                  key={t.number}
+                  todo={t}
+                  today={today}
+                  hub={hub}
+                  done={checked.has(t.number)}
+                  onToggleDone={(on) => void toggleDone(t, on)}
+                  onChanged={() => void load()}
+                />
               ))}
             </section>
           )}
@@ -194,6 +230,8 @@ export default function App() {
                 rows={rows}
                 today={today}
                 hub={hub}
+                checked={checked}
+                onToggleDone={toggleDone}
                 onChanged={() => void load()}
                 onReorder={(numbers) => void reorder(name, numbers)}
               />
@@ -247,6 +285,8 @@ function Section({
   rows,
   today,
   hub,
+  checked,
+  onToggleDone,
   onChanged,
   onReorder,
 }: {
@@ -254,6 +294,8 @@ function Section({
   rows: Todo[];
   today: string;
   hub: HubFile | null;
+  checked: Set<number>;
+  onToggleDone: (todo: Todo, done: boolean) => void;
   onChanged: () => void;
   onReorder: (numbers: number[]) => void;
 }) {
@@ -282,7 +324,14 @@ function Section({
           onDragOver={(e) => e.preventDefault()}
           onDrop={() => dropOn(t.number)}
         >
-          <Row todo={t} today={today} hub={hub} onChanged={onChanged} />
+          <Row
+            todo={t}
+            today={today}
+            hub={hub}
+            done={checked.has(t.number)}
+            onToggleDone={(on) => onToggleDone(t, on)}
+            onChanged={onChanged}
+          />
         </div>
       ))}
     </section>
@@ -474,11 +523,15 @@ function Row({
   todo,
   today,
   hub,
+  done,
+  onToggleDone,
   onChanged,
 }: {
   todo: Todo;
   today: string;
   hub: HubFile | null;
+  done: boolean;
+  onToggleDone: (done: boolean) => void;
   onChanged: () => void;
 }) {
   const [busy, setBusy] = useState(false);
@@ -500,12 +553,17 @@ function Row({
   const nextPriority: Priority =
     todo.priority === "보통" ? "높음" : todo.priority === "높음" ? "낮음" : "보통";
 
+  // 끝낸 것은 체크만 살리고 나머지는 잠근다. 잘못 누른 김에 다른 것까지 바뀌면 곤란하다.
+  const locked = busy || done;
+
   return (
-    <div className={`row${busy ? " busy" : ""}${todo.project ? " linked" : ""}`}>
-      <button
+    <div className={`row${busy ? " busy" : ""}${done ? " done" : ""}${todo.project ? " linked" : ""}`}>
+      <input
+        type="checkbox"
         className="check"
-        onClick={() => void run(() => closeTodo(todo.number))}
-        aria-label="완료"
+        checked={done}
+        onChange={(e) => onToggleDone(e.target.checked)}
+        aria-label={done ? "되돌리기" : "완료"}
         disabled={busy}
       />
       <div className="body">
@@ -516,7 +574,7 @@ function Row({
           {/* 글자로 적는다. 점 하나로 뒀더니 무슨 뜻인지도, 누를 수 있는지도 안 보였다. */}
           <button
             className={`prio p${todo.priority}`}
-            disabled={busy}
+            disabled={locked}
             onClick={() => void run(() => setPriority(todo, nextPriority))}
             aria-label={`우선순위 ${todo.priority}, 눌러서 바꾸기`}
           >
@@ -542,11 +600,11 @@ function Row({
               ))}
             </select>
           ) : todo.project ? (
-            <button className="tag project" disabled={busy} onClick={() => setLinking(true)}>
+            <button className="tag project" disabled={locked} onClick={() => setLinking(true)}>
               {projectTitle ?? todo.project}
             </button>
           ) : (
-            <button className="tag link-add" disabled={busy} onClick={() => setLinking(true)}>
+            <button className="tag link-add" disabled={locked} onClick={() => setLinking(true)}>
               + 프로젝트
             </button>
           )}
