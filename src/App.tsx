@@ -13,6 +13,7 @@ import {
   renameCategoryLabel,
   reopenTodo,
   saveConfig,
+  setDue,
   setPriority,
   setProject,
   setToken,
@@ -566,6 +567,9 @@ function Row({
 }) {
   const [busy, setBusy] = useState(false);
   const [linking, setLinking] = useState(false);
+  const [dating, setDating] = useState(false);
+  // 시간까지 적힌 마감이면 시간 칸을 열어둔 채로 시작한다. 날짜만 고치다 시간을 지우지 않게.
+  const [withTime, setWithTime] = useState(() => (todo.due?.length ?? 0) > 10);
   const state = dueState(todo.due, today);
   const origin = readOrigin(todo.origin);
   const projectTitle = hub?.projects.find((p) => p.slug === todo.project)?.title;
@@ -640,7 +644,45 @@ function Row({
           )}
 
           {todo.inProgress && <span className="tag">진행중</span>}
-          {state && <span className={`due ${state}`}>{dueLabel(todo.due!, state)}</span>}
+
+          {/* 마감 — 눌러서 고치거나 비운다. 마감이 있어야 "지금 볼 것"에 올라온다. */}
+          {dating ? (
+            <span className="due-edit">
+              <input
+                type={withTime ? "datetime-local" : "date"}
+                autoFocus
+                defaultValue={todo.due ? todo.due.replace(" ", "T") : ""}
+                onChange={(e) => {
+                  const v = e.target.value; // 다 채워지기 전에는 빈 값이라 중간에 안 새어 나간다
+                  setDating(false);
+                  void run(() => setDue(todo, v ? v.replace("T", " ") : null));
+                }}
+                onBlur={() => setDating(false)}
+              />
+              <button
+                type="button"
+                className={withTime ? "chip on" : "chip"}
+                // 칩을 누를 때 입력칸이 blur되어 편집이 닫히는 걸 막는다
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => setWithTime((v) => !v)}
+              >
+                시간
+              </button>
+            </span>
+          ) : state ? (
+            <button
+              className={`due ${state}`}
+              disabled={locked}
+              onClick={() => setDating(true)}
+              aria-label={`마감 ${todo.due}, 눌러서 바꾸기`}
+            >
+              {dueLabel(todo.due!, state)}
+            </button>
+          ) : (
+            <button className="tag due-add" disabled={locked} onClick={() => setDating(true)}>
+              + 마감
+            </button>
+          )}
           {origin &&
             (origin.session ? (
               <a className="tag origin" href={origin.session} target="_blank" rel="noreferrer">
@@ -800,7 +842,9 @@ function HubSection({
         const stale = staleOf(p, now);
         const active = pulled(p.slug);
         return (
-          <details key={p.slug} open={wide}>
+          // 폰에서는 전부 접혀 나온다. 실행 줄로 끌어온 게 있는 프로젝트는 지금 손대는
+          // 프로젝트라 펼쳐 둔다 — 접힌 채로는 아래까지 내려가 눌러야 보인다.
+          <details key={p.slug} open={wide || active > 0}>
             <summary>
               {tidy(p.title)} <span className="count">{p.items.length}</span>
               {active > 0 && <span className="pulled">실행 {active}</span>}

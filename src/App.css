@@ -212,6 +212,7 @@ input {
   padding: 1px 8px;
   border: 1px solid var(--line);
   color: var(--dim);
+  background: transparent;
 }
 
 .due.overdue {
@@ -540,7 +541,8 @@ a.tag {
   font-size: 12px;
 }
 
-.tag.link-add {
+.tag.link-add,
+.tag.due-add {
   background: transparent;
   border-style: dashed;
   color: var(--dim);
@@ -552,15 +554,31 @@ a.tag {
 }
 
 .row:hover .tag.link-add,
-.row:focus-within .tag.link-add {
+.row:focus-within .tag.link-add,
+.row:hover .tag.due-add,
+.row:focus-within .tag.due-add {
   opacity: 1;
 }
 
 /* 모바일은 hover가 없으니 항상 보이게 */
 @media (max-width: 979px) {
-  .tag.link-add {
+  .tag.link-add,
+  .tag.due-add {
     opacity: 0.6;
   }
+}
+
+/* 행 안에서 마감을 고칠 때. 좁으니 입력칸을 최소로 두고 시간 칩만 옆에 붙인다. */
+.due-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.due-edit input {
+  font-size: 12px;
+  padding: 1px 6px;
+  width: auto;
 }
 
 .meta select {
