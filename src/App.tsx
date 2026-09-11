@@ -8,6 +8,7 @@ import {
   deleteCategoryLabel,
   fetchClosedTodos,
   fetchHub,
+  fetchSessions,
   fetchTodosAndConfig,
   getToken,
   renameCategoryLabel,
@@ -30,6 +31,8 @@ import {
   type BacklogSort,
 } from "./config";
 import { fromHub, fromTodos, splitByRecency, type DoneEntry } from "./done";
+import { hostLabel, idleDays, projectSummary, splitByActivity } from "./sessions";
+import type { SessionEntry, SessionFile } from "./types";
 import { ageDays, isPulled, pullTitle, sortProjects, splitItem, staleLabel, staleOf } from "./hub";
 import { compareTodos, dueState, todayInSeoul } from "./parse";
 import { readOrigin, since } from "./devices";
@@ -51,6 +54,7 @@ export default function App() {
   const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG);
   const [hub, setHub] = useState<HubFile | null>(null);
   const [closed, setClosed] = useState<Todo[]>([]);
+  const [sessions, setSessions] = useState<SessionFile | null>(null);
   // 체크한 항목은 목록에 남겨두고 줄만 긋는다. 눌러서 되돌릴 자리를 남기려는 것.
   const [checked, setChecked] = useState<Set<number>>(() => new Set());
   // 끌어오는 중인 백로그 항목 하나. 같은 것을 두 번 누르는 걸 막는다.
@@ -139,6 +143,15 @@ export default function App() {
       setError(err instanceof Error ? err.message : String(err));
     }
   }, [config]);
+
+  /** 세션 현황은 펼칠 때 받는다. 매번 받으면 첫 화면이 그만큼 늦어진다. */
+  const loadSessions = useCallback(async () => {
+    try {
+      setSessions(await fetchSessions());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }, []);
 
   /**
    * 체크 토글. 화면을 먼저 바꾸고 GitHub 이슈를 닫거나 다시 연다.
@@ -277,6 +290,8 @@ export default function App() {
               void loadClosed();
             }}
           />
+
+          <SessionsSection file={sessions} onOpen={() => void loadSessions()} />
         </div>
 
         {hub && hub.projects.length > 0 && (
@@ -1010,6 +1025,91 @@ function DoneRow({ entry, onReopened }: { entry: DoneEntry; onReopened: () => vo
               되돌리기
             </button>
           ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * 세션 현황. 어느 세션이 무엇을 건드렸고 무슨 할 일을 담았나.
+ *
+ * 할 일 목록은 여기서 다시 그리지 않는다 — 담은 할 일은 번호로만 잇고
+ * 본체는 위 할 일 화면이 주인이다.
+ */
+function SessionsSection({ file, onOpen }: { file: SessionFile | null; onOpen: () => void }) {
+  const now = Date.now();
+  const { active, quiet } = splitByActivity(file?.sessions ?? [], now);
+  const [showQuiet, setShowQuiet] = useState(false);
+
+  return (
+    <details className="sessions" onToggle={(e) => e.currentTarget.open && onOpen()}>
+      <summary>
+        세션 현황 <span className="count">{file?.sessions.length ?? 0}</span>
+      </summary>
+
+      {!file ? (
+        <p className="empty">아직 없음</p>
+      ) : (
+        <>
+          <h3>오늘 움직인 것</h3>
+          {active.length === 0 ? (
+            <p className="empty">없음</p>
+          ) : (
+            active.map((s) => <SessionRow key={s.id} entry={s} now={now} />)
+          )}
+
+          {quiet.length > 0 && (
+            <>
+              <button className="ghost more" onClick={() => setShowQuiet((v) => !v)}>
+                {showQuiet ? "조용한 세션 접기" : `조용한 세션 ${quiet.length}개 보기`}
+              </button>
+              {showQuiet && quiet.map((s) => <SessionRow key={s.id} entry={s} now={now} />)}
+            </>
+          )}
+
+          <p className="meta">
+            최근 {file.days}일 · {file.drawnAt}
+          </p>
+        </>
+      )}
+    </details>
+  );
+}
+
+function SessionRow({ entry, now }: { entry: SessionEntry; now: number }) {
+  const days = idleDays(entry, now);
+  const summary = projectSummary(entry);
+  return (
+    <div className="session-row">
+      <div className="session-head">
+        <span className="host">{hostLabel(entry)}</span>
+        {days !== null && <span className="when">{days === 0 ? "오늘" : `${days}일 전`}</span>}
+        {summary && <span className="projects">{summary}</span>}
+      </div>
+      {entry.lastSubject && <p className="subject">{entry.lastSubject}</p>}
+      <div className="session-foot">
+        <a href={entry.url} target="_blank" rel="noreferrer">
+          세션 열기
+        </a>
+        {entry.issues.length > 0 && (
+          <span className="issues">
+            담은 할 일 {entry.issues.length}건 (
+            {entry.issues.map((i, n) => (
+              <span key={i.number}>
+                {n > 0 && ", "}
+                <a
+                  href={`https://github.com/zoona/todo/issues/${i.number}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  title={i.title}
+                >
+                  #{i.number}
+                </a>
+              </span>
+            ))}
+            )
+          </span>
+        )}
       </div>
     </div>
   );

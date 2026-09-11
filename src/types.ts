@@ -49,3 +49,24 @@ export type HubFile = {
   commitDate: string;
   projects: HubProject[];
 };
+
+/** 한 세션이 무엇을 했나. 커밋과 이슈를 세션 ID로 묶은 것. */
+export type SessionEntry = {
+  id: string;
+  url: string;
+  /** 마지막 커밋 시각. 커밋이 없으면(이슈만 담은 세션) null */
+  lastAt: string | null;
+  lastSubject: string | null;
+  commits: number;
+  projects: { slug: string; count: number }[];
+  /** 장비 이름. 이슈 출처 줄에서만 오므로 모를 수 있다 */
+  host: string | null;
+  /** 그 세션이 담은 열린 할 일. 목록 본체는 할 일 화면이 주인이라 번호와 제목만 */
+  issues: { number: number; title: string }[];
+};
+
+export type SessionFile = {
+  drawnAt: string;
+  days: number;
+  sessions: SessionEntry[];
+};
