@@ -1014,3 +1014,10 @@ details.done {
   margin: 2px 0 0;
   opacity: 0.7;
 }
+
+/* 이어서 할 자리가 어디인지. 다른 장비면 그 장비로 가야 한다. */
+.progress-row .cwd {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 11px;
+  opacity: 0.7;
+}

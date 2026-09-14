@@ -1195,6 +1195,18 @@ function ProgressRow({ entry, now }: { entry: ProgressEntry; now: number }) {
         {entry.ahead > 0 && <span className="projects">안 올린 커밋 {entry.ahead}개</span>}
       </div>
       {files && <p className="subject">{files}</p>}
+      <div className="session-foot">
+        {entry.session && (
+          <a
+            href={`https://claude.ai/code/session_${entry.session}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            이어서 하기
+          </a>
+        )}
+        {entry.cwd && <span className="cwd">{entry.cwd}</span>}
+      </div>
       {entry.lastSubject && <p className="meta">직전 커밋: {entry.lastSubject}</p>}
     </div>
   );
