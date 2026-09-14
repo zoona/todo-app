@@ -54,3 +54,8 @@ export function projectSummary(entry: SessionEntry, limit = 2): string {
 export function hostLabel(entry: SessionEntry): string {
   return entry.host ?? "장비 모름";
 }
+
+/** 목록에 보일 도구 이름. 무엇으로 한 작업인지 한눈에 갈리게 한다. */
+export function toolLabel(entry: SessionEntry): string {
+  return entry.tool === "codex" ? "Codex" : "Claude";
+}

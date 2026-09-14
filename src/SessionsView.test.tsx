@@ -16,6 +16,7 @@ function file(over: Partial<SessionFile> = {}): SessionFile {
     sessions: [
       {
         id: "01AA",
+        tool: "claude",
         url: "https://claude.ai/code/session_01AA",
         lastAt: "2026-09-14T09:00:00+09:00",
         lastSubject: "task-dashboard: 오늘 한 일",
@@ -26,7 +27,8 @@ function file(over: Partial<SessionFile> = {}): SessionFile {
       },
       {
         id: "01BB",
-        url: "https://claude.ai/code/session_01BB",
+        tool: "codex",
+        url: null,
         lastAt: "2026-09-09T09:00:00+09:00",
         lastSubject: "working: 며칠 전 일",
         commits: 1,
@@ -62,6 +64,16 @@ describe("SessionsView", () => {
     expect(html).toContain("담은 할 일 1건");
     // 제목은 title 속성에만 있고 본문으로 나열하지 않는다
     expect(html).not.toContain(">할 일 하나<");
+  });
+
+  it("Codex로 한 작업도 보여주고, 없는 링크는 안 만든다", () => {
+    vi.setSystemTime(NOW);
+    const html = text(renderToString(<SessionsView file={file()} />));
+    expect(html).toContain("Codex");
+    expect(html).toContain("working: 며칠 전 일");
+    // Codex 줄에는 "세션 열기"가 없어야 한다
+    const codexPart = html.slice(html.indexOf("Codex"));
+    expect(codexPart).not.toContain("세션 열기");
   });
 
   it("아직 못 받았으면 0건이 아니라 안내를 보여준다", () => {

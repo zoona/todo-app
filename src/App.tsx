@@ -31,7 +31,7 @@ import {
   type BacklogSort,
 } from "./config";
 import { fromHub, fromTodos, splitByRecency, type DoneEntry } from "./done";
-import { hostLabel, idleDays, projectSummary, splitByActivity } from "./sessions";
+import { hostLabel, idleDays, projectSummary, splitByActivity, toolLabel } from "./sessions";
 import type { SessionEntry, SessionFile } from "./types";
 import { ageDays, isPulled, pullTitle, sortProjects, splitItem, staleLabel, staleOf } from "./hub";
 import { compareTodos, dueState, todayInSeoul } from "./parse";
@@ -1098,15 +1098,18 @@ function SessionRow({ entry, now }: { entry: SessionEntry; now: number }) {
   return (
     <div className="session-row">
       <div className="session-head">
+        <span className={`tool ${entry.tool}`}>{toolLabel(entry)}</span>
         <span className="host">{hostLabel(entry)}</span>
         {days !== null && <span className="when">{days === 0 ? "오늘" : `${days}일 전`}</span>}
         {summary && <span className="projects">{summary}</span>}
       </div>
       {entry.lastSubject && <p className="subject">{entry.lastSubject}</p>}
       <div className="session-foot">
-        <a href={entry.url} target="_blank" rel="noreferrer">
-          세션 열기
-        </a>
+        {entry.url && (
+          <a href={entry.url} target="_blank" rel="noreferrer">
+            세션 열기
+          </a>
+        )}
         {entry.issues.length > 0 && (
           <span className="issues">
             담은 할 일 {entry.issues.length}건 (

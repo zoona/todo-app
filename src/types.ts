@@ -53,7 +53,10 @@ export type HubFile = {
 /** 한 세션이 무엇을 했나. 커밋과 이슈를 세션 ID로 묶은 것. */
 export type SessionEntry = {
   id: string;
-  url: string;
+  /** 무엇으로 한 작업인가. Codex는 세션 링크가 없어 날짜로 묶인다. */
+  tool: "claude" | "codex";
+  /** 열어볼 링크. Codex는 없다 */
+  url: string | null;
   /** 마지막 커밋 시각. 커밋이 없으면(이슈만 담은 세션) null */
   lastAt: string | null;
   lastSubject: string | null;

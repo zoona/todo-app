@@ -7,6 +7,7 @@ const NOW = Date.parse("2026-09-11T12:00:00+09:00");
 function entry(over: Partial<SessionEntry> = {}): SessionEntry {
   return {
     id: "01AA",
+    tool: "claude",
     url: "https://claude.ai/code/session_01AA",
     lastAt: "2026-09-11T11:00:00+09:00",
     lastSubject: "task-dashboard: 무언가 함",
