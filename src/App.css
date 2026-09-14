@@ -851,22 +851,56 @@ details.done {
   border-color: var(--red);
 }
 
-/* 세션 현황 — 어느 세션이 무엇을 건드렸나. 끝낸 것과 같은 접힘 섹션이다. */
-.sessions > summary {
-  cursor: pointer;
+/* 탭 — 할 일과 세션 현황을 가른다. 세션을 아래에 묻어두면 안 보인다. */
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin: 0 0 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.tabs button {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  padding: 8px 12px;
   font-size: 14px;
   font-weight: 600;
   color: var(--dim);
+  cursor: pointer;
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.sessions h3 {
+.tabs button.on {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+
+.tabs .count {
+  font-size: 12px;
+  font-weight: 500;
+  opacity: 0.7;
+}
+
+.layout[hidden] {
+  display: none;
+}
+
+/* 세션 현황 — 어느 세션이 무엇을 건드렸나. */
+.sessions h2 {
   font-size: 12px;
   font-weight: 500;
   color: var(--dim);
   margin: 14px 0 6px;
+}
+
+.sessions h2 .more {
+  padding: 0;
+  font-size: 12px;
+  font-weight: 500;
 }
 
 .sessions .empty {
