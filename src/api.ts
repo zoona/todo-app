@@ -7,14 +7,7 @@ import {
   type PushSubscriptionRecord,
 } from "./push";
 import { DEFAULT_CONFIG, parseConfig, renderConfig, type AppConfig } from "./config";
-import {
-  SYSTEM_LABELS,
-  UNSORTED,
-  type HubFile,
-  type Priority,
-  type SessionFile,
-  type Todo,
-} from "./types";
+import { SYSTEM_LABELS, UNSORTED, type HubFile, type Priority, type Todo } from "./types";
 
 const REPO = "zoona/todo";
 const API = "https://api.github.com";
@@ -295,17 +288,5 @@ export async function fetchHub(): Promise<HubFile | null> {
   } catch (err) {
     if (err instanceof AuthError) throw err;
     return null; // 파일이 아직 없으면 HUB 섹션만 비운다
-  }
-}
-
-export async function fetchSessions(): Promise<SessionFile | null> {
-  try {
-    const res = await call(`/repos/${REPO}/contents/sessions.json`, {
-      headers: { Accept: "application/vnd.github.raw+json" },
-    });
-    return (await res.json()) as SessionFile;
-  } catch (err) {
-    if (err instanceof AuthError) throw err;
-    return null; // 워크플로가 아직 안 그렸으면 세션 섹션만 비운다
   }
 }

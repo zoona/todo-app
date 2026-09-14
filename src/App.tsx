@@ -8,7 +8,6 @@ import {
   deleteCategoryLabel,
   fetchClosedTodos,
   fetchHub,
-  fetchSessions,
   fetchTodosAndConfig,
   getToken,
   renameCategoryLabel,
@@ -31,19 +30,6 @@ import {
   type BacklogSort,
 } from "./config";
 import { fromHub, fromTodos, splitByRecency, type DoneEntry } from "./done";
-import {
-  deviceOptions,
-  dirtySummary,
-  filterByDevice,
-  hostLabel,
-  idleDays,
-  projectSummary,
-  splitByActivity,
-  staleFirst,
-  toolLabel,
-  UNKNOWN_HOST,
-} from "./sessions";
-import type { ProgressEntry, SessionEntry, SessionFile } from "./types";
 import { ageDays, isPulled, pullTitle, sortProjects, splitItem, staleLabel, staleOf } from "./hub";
 import { compareTodos, dueState, todayInSeoul } from "./parse";
 import { readOrigin, since } from "./devices";
@@ -65,8 +51,6 @@ export default function App() {
   const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG);
   const [hub, setHub] = useState<HubFile | null>(null);
   const [closed, setClosed] = useState<Todo[]>([]);
-  const [sessions, setSessions] = useState<SessionFile | null>(null);
-  const [tab, setTab] = useState<"todos" | "sessions">("todos");
   // 체크한 항목은 목록에 남겨두고 줄만 긋는다. 눌러서 되돌릴 자리를 남기려는 것.
   const [checked, setChecked] = useState<Set<number>>(() => new Set());
   // 끌어오는 중인 백로그 항목 하나. 같은 것을 두 번 누르는 걸 막는다.
@@ -81,15 +65,13 @@ export default function App() {
     setLoading(true);
     setError(null);
     try {
-      const [{ todos: list, config: cfg }, hubFile, sessionFile] = await Promise.all([
+      const [{ todos: list, config: cfg }, hubFile] = await Promise.all([
         fetchTodosAndConfig(),
         fetchHub(),
-        fetchSessions(),
       ]);
       setTodos(list);
       setConfig(cfg);
       setHub(hubFile);
-      setSessions(sessionFile);
       // 새로 받아온 목록엔 닫힌 것이 없다. 남아 있던 체크 표시도 같이 비운다.
       setChecked(new Set());
       localStorage.setItem("todo.cache", JSON.stringify({ list, cfg, hubFile }));
@@ -157,7 +139,6 @@ export default function App() {
       setError(err instanceof Error ? err.message : String(err));
     }
   }, [config]);
-
 
   /**
    * 체크 토글. 화면을 먼저 바꾸고 GitHub 이슈를 닫거나 다시 연다.
@@ -232,8 +213,6 @@ export default function App() {
     return s === "overdue" || s === "today";
   });
 
-  const sessionCount = sessions?.sessions.length ?? 0;
-
   return (
     <div className="app">
       <header>
@@ -249,27 +228,7 @@ export default function App() {
         </div>
       )}
 
-      <nav className="tabs">
-        <button
-          className={tab === "todos" ? "on" : ""}
-          onClick={() => setTab("todos")}
-          aria-current={tab === "todos"}
-        >
-          할 일
-        </button>
-        <button
-          className={tab === "sessions" ? "on" : ""}
-          onClick={() => setTab("sessions")}
-          aria-current={tab === "sessions"}
-        >
-          세션 현황
-          {sessionCount > 0 && <span className="count">{sessionCount}</span>}
-        </button>
-      </nav>
-
-      {tab === "sessions" && <SessionsView file={sessions} />}
-
-      <div className="layout" hidden={tab !== "todos"}>
+      <div className="layout">
         <div className="col-todos">
           <AddForm today={today} hub={hub} categories={config.categories} onAdded={() => void load()} />
 
@@ -1052,162 +1011,6 @@ function DoneRow({ entry, onReopened }: { entry: DoneEntry; onReopened: () => vo
             </button>
           ))}
       </div>
-    </div>
-  );
-}
-
-/**
- * 세션 현황. 어느 세션이 무엇을 건드렸고 무슨 할 일을 담았나.
- *
- * 할 일 목록은 여기서 다시 그리지 않는다 — 담은 할 일은 번호로만 잇고
- * 본체는 위 할 일 화면이 주인이다.
- */
-export function SessionsView({ file }: { file: SessionFile | null }) {
-  const now = Date.now();
-  // 조용한 세션이 대부분이라 접어 두면 빈 화면처럼 보인다. 처음부터 펼쳐 둔다.
-  const [showQuiet, setShowQuiet] = useState(true);
-  const [device, setDevice] = useState<string | null>(null);
-
-  const all = file?.sessions ?? [];
-  // 장비를 고르면 하다 만 것도 같이 좁힌다. 한 장비만 볼 때 남의 것이 섞이면 헷갈린다.
-  const progress = staleFirst(
-    (file?.progress ?? []).filter((p) => device === null || (p.host ?? UNKNOWN_HOST) === device),
-  );
-  const devices = deviceOptions(all);
-  const { active, quiet } = splitByActivity(filterByDevice(all, device), now);
-
-  if (!file) {
-    return (
-      <section className="sessions">
-        <p className="empty">세션 기록을 아직 못 받았습니다. 새로고침을 눌러 보세요.</p>
-      </section>
-    );
-  }
-
-  return (
-    <section className="sessions">
-      {devices.length > 1 && (
-        <div className="devices">
-          <button className={device === null ? "on" : ""} onClick={() => setDevice(null)}>
-            전체 <span className="count">{all.length}</span>
-          </button>
-          {devices.map((d) => (
-            <button
-              key={d.host}
-              className={device === d.host ? "on" : ""}
-              onClick={() => setDevice(d.host)}
-            >
-              {d.host === UNKNOWN_HOST ? "장비 모름" : d.host}{" "}
-              <span className="count">{d.count}</span>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {progress.length > 0 && (
-        <>
-          <h2 className="warn">하다 만 것</h2>
-          {progress.map((p, i) => (
-            <ProgressRow key={`${p.host}-${i}`} entry={p} now={now} />
-          ))}
-        </>
-      )}
-
-      <h2>오늘 움직인 것</h2>
-      {active.length === 0 ? (
-        <p className="empty">없음</p>
-      ) : (
-        active.map((s) => <SessionRow key={s.id} entry={s} now={now} />)
-      )}
-
-      {quiet.length > 0 && (
-        <>
-          <h2>
-            <button className="ghost more" onClick={() => setShowQuiet((v) => !v)}>
-              {showQuiet ? `그 전 ${quiet.length}개 접기` : `그 전 ${quiet.length}개 보기`}
-            </button>
-          </h2>
-          {showQuiet && quiet.map((s) => <SessionRow key={s.id} entry={s} now={now} />)}
-        </>
-      )}
-
-      <p className="meta">
-        최근 {file.days}일 · {file.drawnAt} 기준
-      </p>
-    </section>
-  );
-}
-
-function SessionRow({ entry, now }: { entry: SessionEntry; now: number }) {
-  const days = idleDays(entry, now);
-  const summary = projectSummary(entry);
-  return (
-    <div className="session-row">
-      <div className="session-head">
-        <span className={`tool ${entry.tool}`}>{toolLabel(entry)}</span>
-        <span className="host">{hostLabel(entry)}</span>
-        {days !== null && <span className="when">{days === 0 ? "오늘" : `${days}일 전`}</span>}
-        {summary && <span className="projects">{summary}</span>}
-      </div>
-      {entry.lastSubject && <p className="subject">{entry.lastSubject}</p>}
-      <div className="session-foot">
-        {entry.url && (
-          <a href={entry.url} target="_blank" rel="noreferrer">
-            세션 열기
-          </a>
-        )}
-        {entry.issues.length > 0 && (
-          <span className="issues">
-            담은 할 일 {entry.issues.length}건 (
-            {entry.issues.map((i, n) => (
-              <span key={i.number}>
-                {n > 0 && ", "}
-                <a
-                  href={`https://github.com/zoona/todo/issues/${i.number}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  title={i.title}
-                >
-                  #{i.number}
-                </a>
-              </span>
-            ))}
-            )
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/** 하다 만 것 한 줄. 어느 장비의 무엇을 이어서 해야 하는지가 보이면 된다. */
-function ProgressRow({ entry, now }: { entry: ProgressEntry; now: number }) {
-  const files = dirtySummary(entry);
-  const days = entry.at ? Math.floor((now - Date.parse(entry.at)) / 86400000) : null;
-  return (
-    <div className="session-row progress-row">
-      <div className="session-head">
-        <span className="host">{entry.host ?? "장비 모름"}</span>
-        {days !== null && Number.isFinite(days) && (
-          <span className="when">{days === 0 ? "오늘" : `${days}일 전`}</span>
-        )}
-        {entry.dirty.length > 0 && <span className="projects">고치던 중 {entry.dirty.length}개</span>}
-        {entry.ahead > 0 && <span className="projects">안 올린 커밋 {entry.ahead}개</span>}
-      </div>
-      {files && <p className="subject">{files}</p>}
-      <div className="session-foot">
-        {entry.session && (
-          <a
-            href={`https://claude.ai/code/session_${entry.session}`}
-            target="_blank"
-            rel="noreferrer"
-          >
-            이어서 하기
-          </a>
-        )}
-        {entry.cwd && <span className="cwd">{entry.cwd}</span>}
-      </div>
-      {entry.lastSubject && <p className="meta">직전 커밋: {entry.lastSubject}</p>}
     </div>
   );
 }
