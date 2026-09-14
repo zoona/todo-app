@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { hostLabel, idleDays, projectSummary, splitByActivity } from "./sessions";
+import {
+  deviceOptions,
+  filterByDevice,
+  hostLabel,
+  idleDays,
+  projectSummary,
+  splitByActivity,
+  UNKNOWN_HOST,
+} from "./sessions";
 import type { SessionEntry } from "./types";
 
 const NOW = Date.parse("2026-09-11T12:00:00+09:00");
@@ -82,5 +90,39 @@ describe("hostLabel", () => {
   it("장비를 모르면 모른다고 적는다", () => {
     expect(hostLabel(entry({ host: null }))).toBe("장비 모름");
     expect(hostLabel(entry())).toBe("LAMBRAY");
+  });
+});
+
+describe("장비별 분류", () => {
+  const list = [
+    entry({ id: "1", host: "lambray" }),
+    entry({ id: "2", host: "SKCC22N00381" }),
+    entry({ id: "3", host: "lambray" }),
+    entry({ id: "4", host: null }),
+  ];
+
+  it("많이 쓴 장비가 앞에 오고 모르는 것은 끝", () => {
+    expect(deviceOptions(list)).toEqual([
+      { host: "lambray", count: 2 },
+      { host: "SKCC22N00381", count: 1 },
+      { host: UNKNOWN_HOST, count: 1 },
+    ]);
+  });
+
+  it("수가 같으면 이름순이라 순서가 안 흔들린다", () => {
+    const same = [entry({ id: "1", host: "b" }), entry({ id: "2", host: "a" })];
+    expect(deviceOptions(same).map((d) => d.host)).toEqual(["a", "b"]);
+  });
+
+  it("고른 장비만 남긴다", () => {
+    expect(filterByDevice(list, "lambray").map((e) => e.id)).toEqual(["1", "3"]);
+  });
+
+  it("장비 모름도 골라 볼 수 있다", () => {
+    expect(filterByDevice(list, UNKNOWN_HOST).map((e) => e.id)).toEqual(["4"]);
+  });
+
+  it("null이면 전부", () => {
+    expect(filterByDevice(list, null)).toHaveLength(4);
   });
 });

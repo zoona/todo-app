@@ -31,7 +31,16 @@ import {
   type BacklogSort,
 } from "./config";
 import { fromHub, fromTodos, splitByRecency, type DoneEntry } from "./done";
-import { hostLabel, idleDays, projectSummary, splitByActivity, toolLabel } from "./sessions";
+import {
+  deviceOptions,
+  filterByDevice,
+  hostLabel,
+  idleDays,
+  projectSummary,
+  splitByActivity,
+  toolLabel,
+  UNKNOWN_HOST,
+} from "./sessions";
 import type { SessionEntry, SessionFile } from "./types";
 import { ageDays, isPulled, pullTitle, sortProjects, splitItem, staleLabel, staleOf } from "./hub";
 import { compareTodos, dueState, todayInSeoul } from "./parse";
@@ -1053,9 +1062,13 @@ function DoneRow({ entry, onReopened }: { entry: DoneEntry; onReopened: () => vo
  */
 export function SessionsView({ file }: { file: SessionFile | null }) {
   const now = Date.now();
-  const { active, quiet } = splitByActivity(file?.sessions ?? [], now);
   // 조용한 세션이 대부분이라 접어 두면 빈 화면처럼 보인다. 처음부터 펼쳐 둔다.
   const [showQuiet, setShowQuiet] = useState(true);
+  const [device, setDevice] = useState<string | null>(null);
+
+  const all = file?.sessions ?? [];
+  const devices = deviceOptions(all);
+  const { active, quiet } = splitByActivity(filterByDevice(all, device), now);
 
   if (!file) {
     return (
@@ -1067,6 +1080,24 @@ export function SessionsView({ file }: { file: SessionFile | null }) {
 
   return (
     <section className="sessions">
+      {devices.length > 1 && (
+        <div className="devices">
+          <button className={device === null ? "on" : ""} onClick={() => setDevice(null)}>
+            전체 <span className="count">{all.length}</span>
+          </button>
+          {devices.map((d) => (
+            <button
+              key={d.host}
+              className={device === d.host ? "on" : ""}
+              onClick={() => setDevice(d.host)}
+            >
+              {d.host === UNKNOWN_HOST ? "장비 모름" : d.host}{" "}
+              <span className="count">{d.count}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       <h2>오늘 움직인 것</h2>
       {active.length === 0 ? (
         <p className="empty">없음</p>

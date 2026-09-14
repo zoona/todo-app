@@ -59,3 +59,31 @@ export function hostLabel(entry: SessionEntry): string {
 export function toolLabel(entry: SessionEntry): string {
   return entry.tool === "codex" ? "Codex" : "Claude";
 }
+
+/** 장비를 모르는 세션을 한데 모을 칸 이름. 빈 값과 섞이지 않게 기호를 쓴다. */
+export const UNKNOWN_HOST = "\u0000unknown";
+
+/**
+ * 목록에 낼 장비 칸. 많이 쓴 장비가 앞에 오고, 모르는 것은 늘 끝이다.
+ * 화면에서 고르는 자리라 순서가 새로고침마다 흔들리면 안 된다.
+ */
+export function deviceOptions(entries: SessionEntry[]): { host: string; count: number }[] {
+  const counts = new Map<string, number>();
+  for (const e of entries) {
+    const key = e.host ?? UNKNOWN_HOST;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([host, count]) => ({ host, count }))
+    .sort((a, b) => {
+      if (a.host === UNKNOWN_HOST) return 1;
+      if (b.host === UNKNOWN_HOST) return -1;
+      return b.count - a.count || a.host.localeCompare(b.host);
+    });
+}
+
+/** 고른 장비만 남긴다. null이면 전부. */
+export function filterByDevice(entries: SessionEntry[], host: string | null): SessionEntry[] {
+  if (host === null) return entries;
+  return entries.filter((e) => (e.host ?? UNKNOWN_HOST) === host);
+}
