@@ -10,7 +10,7 @@
  * 잇고 본체는 할 일 화면이 주인이다. 두 군데서 그리면 어느 쪽이 맞는지 헷갈린다.
  */
 
-import type { SessionEntry } from "./types";
+import type { ProgressEntry, SessionEntry } from "./types";
 
 const DAY = 86400000;
 /** 이보다 오래 조용하면 끝난 세션으로 본다. 하루를 넘기면 이어서 하는 일이 아니다. */
@@ -86,4 +86,20 @@ export function deviceOptions(entries: SessionEntry[]): { host: string; count: n
 export function filterByDevice(entries: SessionEntry[], host: string | null): SessionEntry[] {
   if (host === null) return entries;
   return entries.filter((e) => (e.host ?? UNKNOWN_HOST) === host);
+}
+
+/**
+ * 하다 만 것 한 줄. 고치던 파일이 무엇을 하던 중인지를 말해준다.
+ * 경로가 길어 다 늘어놓으면 정작 어느 프로젝트였는지가 안 보이므로 앞을 접는다.
+ */
+export function dirtySummary(entry: ProgressEntry, limit = 3): string {
+  if (entry.dirty.length === 0) return "";
+  const short = entry.dirty.slice(0, limit).map((p) => p.split("/").slice(-2).join("/"));
+  const rest = entry.dirty.length - short.length;
+  return rest > 0 ? `${short.join(", ")} 외 ${rest}` : short.join(", ");
+}
+
+/** 오래 방치된 것이 위로 온다. 최근 것은 아직 하는 중일 수 있다. */
+export function staleFirst(entries: ProgressEntry[]): ProgressEntry[] {
+  return [...entries].sort((a, b) => (a.at ?? "").localeCompare(b.at ?? ""));
 }

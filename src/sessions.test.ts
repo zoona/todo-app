@@ -7,8 +7,10 @@ import {
   projectSummary,
   splitByActivity,
   UNKNOWN_HOST,
+  dirtySummary,
+  staleFirst,
 } from "./sessions";
-import type { SessionEntry } from "./types";
+import type { ProgressEntry, SessionEntry } from "./types";
 
 const NOW = Date.parse("2026-09-11T12:00:00+09:00");
 
@@ -124,5 +126,43 @@ describe("장비별 분류", () => {
 
   it("null이면 전부", () => {
     expect(filterByDevice(list, null)).toHaveLength(4);
+  });
+});
+
+describe("하다 만 것", () => {
+  function prog(over: Partial<ProgressEntry> = {}): ProgressEntry {
+    return {
+      host: "lambray",
+      session: "01AA",
+      cwd: "/home/zoona/workspace",
+      at: "2026-09-14T15:00:00+09:00",
+      lastSubject: "working: 무언가",
+      dirty: ["projects/task-dashboard/HUB.md"],
+      ahead: 0,
+      ...over,
+    };
+  }
+
+  it("경로는 뒤 두 칸만 보여 어느 프로젝트인지 남긴다", () => {
+    expect(dirtySummary(prog())).toBe("task-dashboard/HUB.md");
+  });
+
+  it("많으면 접는다", () => {
+    const e = prog({ dirty: ["a/1.md", "b/2.md", "c/3.md", "d/4.md", "e/5.md"] });
+    expect(dirtySummary(e)).toBe("a/1.md, b/2.md, c/3.md 외 2");
+  });
+
+  it("고치던 게 없으면 빈 문자열", () => {
+    expect(dirtySummary(prog({ dirty: [] }))).toBe("");
+  });
+
+  it("오래 방치된 것이 위로 온다", () => {
+    const old = prog({ host: "old", at: "2026-09-10T09:00:00+09:00" });
+    const recent = prog({ host: "recent", at: "2026-09-14T15:00:00+09:00" });
+    expect(staleFirst([recent, old]).map((e) => e.host)).toEqual(["old", "recent"]);
+  });
+
+  it("시각을 모르는 것도 터지지 않는다", () => {
+    expect(staleFirst([prog({ at: null }), prog()])).toHaveLength(2);
   });
 });

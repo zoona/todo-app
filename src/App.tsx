@@ -33,15 +33,17 @@ import {
 import { fromHub, fromTodos, splitByRecency, type DoneEntry } from "./done";
 import {
   deviceOptions,
+  dirtySummary,
   filterByDevice,
   hostLabel,
   idleDays,
   projectSummary,
   splitByActivity,
+  staleFirst,
   toolLabel,
   UNKNOWN_HOST,
 } from "./sessions";
-import type { SessionEntry, SessionFile } from "./types";
+import type { ProgressEntry, SessionEntry, SessionFile } from "./types";
 import { ageDays, isPulled, pullTitle, sortProjects, splitItem, staleLabel, staleOf } from "./hub";
 import { compareTodos, dueState, todayInSeoul } from "./parse";
 import { readOrigin, since } from "./devices";
@@ -1067,6 +1069,10 @@ export function SessionsView({ file }: { file: SessionFile | null }) {
   const [device, setDevice] = useState<string | null>(null);
 
   const all = file?.sessions ?? [];
+  // 장비를 고르면 하다 만 것도 같이 좁힌다. 한 장비만 볼 때 남의 것이 섞이면 헷갈린다.
+  const progress = staleFirst(
+    (file?.progress ?? []).filter((p) => device === null || (p.host ?? UNKNOWN_HOST) === device),
+  );
   const devices = deviceOptions(all);
   const { active, quiet } = splitByActivity(filterByDevice(all, device), now);
 
@@ -1096,6 +1102,15 @@ export function SessionsView({ file }: { file: SessionFile | null }) {
             </button>
           ))}
         </div>
+      )}
+
+      {progress.length > 0 && (
+        <>
+          <h2 className="warn">하다 만 것</h2>
+          {progress.map((p, i) => (
+            <ProgressRow key={`${p.host}-${i}`} entry={p} now={now} />
+          ))}
+        </>
       )}
 
       <h2>오늘 움직인 것</h2>
@@ -1161,6 +1176,26 @@ function SessionRow({ entry, now }: { entry: SessionEntry; now: number }) {
           </span>
         )}
       </div>
+    </div>
+  );
+}
+
+/** 하다 만 것 한 줄. 어느 장비의 무엇을 이어서 해야 하는지가 보이면 된다. */
+function ProgressRow({ entry, now }: { entry: ProgressEntry; now: number }) {
+  const files = dirtySummary(entry);
+  const days = entry.at ? Math.floor((now - Date.parse(entry.at)) / 86400000) : null;
+  return (
+    <div className="session-row progress-row">
+      <div className="session-head">
+        <span className="host">{entry.host ?? "장비 모름"}</span>
+        {days !== null && Number.isFinite(days) && (
+          <span className="when">{days === 0 ? "오늘" : `${days}일 전`}</span>
+        )}
+        {entry.dirty.length > 0 && <span className="projects">고치던 중 {entry.dirty.length}개</span>}
+        {entry.ahead > 0 && <span className="projects">안 올린 커밋 {entry.ahead}개</span>}
+      </div>
+      {files && <p className="subject">{files}</p>}
+      {entry.lastSubject && <p className="meta">직전 커밋: {entry.lastSubject}</p>}
     </div>
   );
 }

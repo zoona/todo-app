@@ -996,3 +996,21 @@ details.done {
 .sessions .devices .count {
   opacity: 0.6;
 }
+
+/* 하다 만 것. 이어서 해야 하는 자리라 다른 줄보다 눈에 띄어야 한다. */
+.sessions h2.warn {
+  color: var(--text);
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.progress-row {
+  border-left: 2px solid var(--accent);
+  padding-left: 8px;
+}
+
+.progress-row .meta {
+  font-size: 11px;
+  margin: 2px 0 0;
+  opacity: 0.7;
+}

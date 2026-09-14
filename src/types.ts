@@ -68,8 +68,23 @@ export type SessionEntry = {
   issues: { number: number; title: string }[];
 };
 
+/** 지금 붙들고 있는 것. 커밋 전에 끊긴 작업이라 커밋 목록에는 안 보인다. */
+export type ProgressEntry = {
+  host: string | null;
+  session: string | null;
+  cwd: string | null;
+  /** 마지막으로 올린 시각 */
+  at: string | null;
+  lastSubject: string | null;
+  /** 고치다 만 파일 경로. 내용은 담지 않는다 */
+  dirty: string[];
+  /** 커밋했지만 안 올린 것 */
+  ahead: number;
+};
+
 export type SessionFile = {
   drawnAt: string;
   days: number;
+  progress?: ProgressEntry[];
   sessions: SessionEntry[];
 };
