@@ -40,7 +40,11 @@ import {
   exchangeCode,
   loginReady,
   parseCallback,
+  handOverToken,
+  inFrame,
+  isPopupLogin,
   startLogin,
+  startLoginPopup,
 } from "./auth";
 import { NotifyToggle } from "./NotifyToggle";
 import "./App.css";
@@ -95,9 +99,13 @@ export default function App() {
   }, []);
 
   // GitHub 로그인 콜백이면 code를 토큰으로 바꾼다. 마운트 때 한 번.
+  // 위키 홈 같은 화면 안에서 연 새 창 로그인이면 바로 GitHub로 보낸다.
   useEffect(() => {
     const cb = parseCallback(location.search);
-    if (!cb) return;
+    if (!cb) {
+      if (isPopupLogin(location.search)) startLogin();
+      return;
+    }
     cleanCallbackUrl();
     if (!consumeState(cb.state)) {
       setError("로그인 확인값이 맞지 않습니다. 다시 로그인해 주세요.");
@@ -106,6 +114,7 @@ export default function App() {
     exchangeCode(cb.code)
       .then((token) => {
         setToken(token);
+        if (handOverToken(token)) return;
         setAuthed(true);
       })
       .catch((err) => setError(err instanceof Error ? err.message : String(err)));
@@ -402,7 +411,17 @@ function TokenGate({ onSaved, error }: { onSaved: () => void; error: string | nu
       {error && <p className="error">{error}</p>}
       {loginReady() ? (
         <>
-          <button className="primary" onClick={startLogin}>
+          <button
+            className="primary"
+            onClick={() =>
+              inFrame()
+                ? startLoginPopup((token) => {
+                    setToken(token);
+                    onSaved();
+                  })
+                : startLogin()
+            }
+          >
             GitHub로 로그인
           </button>
           <p className="hint">할 일이 담긴 zoona/todo에 접근을 승인하는 것뿐입니다.</p>
