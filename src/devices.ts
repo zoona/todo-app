@@ -25,7 +25,20 @@ export function readOrigin(origin: string | null | undefined): Origin | null {
   const label = hostLabel(host.trim());
   if (!label) return null;
   const url = (session ?? "").trim();
-  return { label, session: url.startsWith("http") ? url : null };
+  return { label, session: sessionLink(url) };
+}
+
+/** Claude Code 로컬 세션 ID. 이 모양이면 Cursor 확장이 세션을 연다 */
+const LOCAL_SESSION = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * 세션 자리의 값을 누를 수 있는 링크로 바꾼다.
+ * 로컬 세션 ID는 담은 장비에서만 열린다. 다른 장비에서는 HUB를 보고 이어 간다.
+ */
+export function sessionLink(value: string): string | null {
+  if (value.startsWith("http")) return value;
+  if (LOCAL_SESSION.test(value)) return `cursor://anthropic.claude-code/open?session=${value.toLowerCase()}`;
+  return null;
 }
 
 /** 담은 지 얼마나 됐나. 오래된 것을 눈으로 가리려는 것이라 대략이면 된다. */

@@ -22,6 +22,13 @@ describe("readOrigin", () => {
     expect(readOrigin("iPhone")).toEqual({ label: "iPhone", session: null });
   });
 
+  it("로컬 세션 ID는 Cursor 링크로 만든다", () => {
+    expect(readOrigin("회사 맥 — 세션 09f8eb6b-c4e9-4a5a-834f-548b8c01a322")).toEqual({
+      label: "회사 맥",
+      session: "cursor://anthropic.claude-code/open?session=09f8eb6b-c4e9-4a5a-834f-548b8c01a322",
+    });
+  });
+
   it("세션 자리에 링크가 아닌 게 오면 링크로 안 만든다", () => {
     expect(readOrigin("lambray — 세션 abc123")).toEqual({ label: "lambray", session: null });
   });

@@ -712,7 +712,13 @@ function Row({
           )}
           {origin &&
             (origin.session ? (
-              <a className="tag origin" href={origin.session} target="_blank" rel="noreferrer">
+              // cursor:// 링크는 새 탭 없이 앱으로 넘긴다. 위키 홈 iframe 안에서도 눌리게 _top
+              <a
+                className="tag origin"
+                href={origin.session}
+                target={origin.session.startsWith("cursor:") ? "_top" : "_blank"}
+                rel="noreferrer"
+              >
                 {origin.label} ↗
               </a>
             ) : (
