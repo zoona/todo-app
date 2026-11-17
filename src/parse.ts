@@ -69,6 +69,7 @@ export type RawIssue = {
   labels: ({ name: string } | string)[];
   created_at?: string;
   closed_at?: string | null;
+  state_reason?: string | null;
   comments?: number;
   pull_request?: unknown;
 };

@@ -3,6 +3,7 @@ import {
   AuthError,
   clearToken,
   closeTodo,
+  dropTodo,
   createCategoryLabel,
   createTodo,
   deleteCategoryLabel,
@@ -589,6 +590,13 @@ function Row({
   const [dating, setDating] = useState(false);
   // 시간까지 적힌 마감이면 시간 칸을 열어둔 채로 시작한다. 날짜만 고치다 시간을 지우지 않게.
   const [withTime, setWithTime] = useState(() => (todo.due?.length ?? 0) > 10);
+  // 삭제는 한 번 눌러 묻고 다시 눌러야 실행한다. 훑다가 스쳐도 지워지지 않게.
+  const [asking, setAsking] = useState(false);
+  useEffect(() => {
+    if (!asking) return;
+    const t = setTimeout(() => setAsking(false), 5000);
+    return () => clearTimeout(t);
+  }, [asking]);
   const state = dueState(todo.due, today);
   const origin = readOrigin(todo.origin);
   const projectTitle = hub?.projects.find((p) => p.slug === todo.project)?.title;
@@ -711,6 +719,30 @@ function Row({
               <span className="tag origin">{origin.label}</span>
             ))}
           {todo.createdAt && <span className="tag when">{since(todo.createdAt)}</span>}
+
+          {/* 할 필요가 없어진 것. 끝낸 것과 갈라서 끝낸 것 목록에 안 섞이게 한다. */}
+          {!done &&
+            (asking ? (
+              <>
+                <button
+                  className="act danger"
+                  disabled={busy}
+                  onClick={() => {
+                    setAsking(false);
+                    void run(() => dropTodo(todo.number));
+                  }}
+                >
+                  {busy ? "지우는 중" : "삭제"}
+                </button>
+                <button className="act" disabled={busy} onClick={() => setAsking(false)}>
+                  취소
+                </button>
+              </>
+            ) : (
+              <button className="act" disabled={busy} onClick={() => setAsking(true)}>
+                삭제
+              </button>
+            ))}
         </div>
       </div>
     </div>

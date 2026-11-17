@@ -97,8 +97,9 @@ export async function fetchClosedTodos(config: AppConfig): Promise<Todo[]> {
     `/repos/${REPO}/issues?state=closed&sort=updated&direction=desc&per_page=100`,
   );
   const raw = (await res.json()) as RawIssue[];
+  // 삭제한 것(not_planned)은 끝낸 게 아니라서 끝낸 것 목록에 넣지 않는다.
   return raw
-    .filter((i) => !i.pull_request && !isSystem(i))
+    .filter((i) => !i.pull_request && !isSystem(i) && i.state_reason !== "not_planned")
     .map((i) => toTodo(i, config.categories));
 }
 
@@ -157,6 +158,18 @@ export async function closeTodo(number: number): Promise<void> {
   await call(`/repos/${REPO}/issues/${number}`, {
     method: "PATCH",
     body: JSON.stringify({ state: "closed" }),
+  });
+}
+
+/**
+ * 할 일을 지운다. 끝낸 것과 갈라야 끝낸 것 목록이 안 섞인다.
+ * 이슈를 진짜로 지우지 않고 "계획 없음"으로 닫는다 — 진짜 삭제는 repo 관리자 권한이
+ * 필요하고 되돌릴 수 없다. GitHub에서는 닫힌 이슈로 남아 다시 열 수 있다.
+ */
+export async function dropTodo(number: number): Promise<void> {
+  await call(`/repos/${REPO}/issues/${number}`, {
+    method: "PATCH",
+    body: JSON.stringify({ state: "closed", state_reason: "not_planned" }),
   });
 }
 
