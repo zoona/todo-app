@@ -14,6 +14,7 @@ import {
   renameCategoryLabel,
   reopenTodo,
   saveConfig,
+  setCategoryLabel,
   setDue,
   setPriority,
   setProject,
@@ -34,6 +35,19 @@ import { fromHub, fromTodos, splitByRecency, type DoneEntry } from "./done";
 import { ageDays, isPulled, pullTitle, sortProjects, splitItem, staleLabel, staleOf } from "./hub";
 import { compareTodos, dueState, todayInSeoul } from "./parse";
 import { readOrigin, since } from "./devices";
+import {
+  BANDS,
+  bandOf,
+  CONTINUE,
+  daysSince,
+  isStale,
+  isToday,
+  periodLabel,
+  shortTitle,
+  splitRecurring,
+  summaryOf,
+  type RecurringGroup,
+} from "./groups";
 import { UNSORTED, type HubFile, type Priority, type Todo } from "./types";
 import {
   cleanCallbackUrl,
@@ -50,6 +64,40 @@ import {
 import { NotifyToggle } from "./NotifyToggle";
 import "./App.css";
 
+/**
+ * 화면은 쓰임새로 나눈다.
+ *
+ * 오늘: 아침에 열어 지금 손댈 것만 본다. 마감, 높음, 진행중, 정기 할 일.
+ * 이어가기: 여러 세션에 걸친 개인 작업. 누르면 Cursor에서 그 세션이 열린다.
+ * 전체: 카테고리를 가로 칩으로 골라 본다. 세로로 쌓으면 업무 아래가 안 보였다.
+ * 정리: 한 달 넘게 손 안 댄 것을 하나씩 끝내거나 지운다. 회의에서 담은 것이 쌓이는 자리.
+ * 백로그: 프로젝트 HUB의 남은 일. 끝낸 것: 되짚기와 되돌리기.
+ */
+type Tab = "today" | "continue" | "all" | "triage" | "backlog" | "done";
+const TABS: { id: Tab; label: string }[] = [
+  { id: "today", label: "오늘" },
+  { id: "continue", label: "이어가기" },
+  { id: "all", label: "전체" },
+  { id: "triage", label: "정리" },
+  { id: "backlog", label: "백로그" },
+  { id: "done", label: "끝낸 것" },
+];
+
+const TAB_KEY = "todo.tab";
+const CAT_KEY = "todo.cat";
+const KEPT_KEY = "todo.kept";
+
+/** 카테고리 색. 설정 순서로 정해져서 카테고리를 옮기지 않는 한 바뀌지 않는다 */
+const PALETTE = ["#4a86e8", "#3fb27f", "#a371f7", "#d9a441", "#e5734b", "#2bb5c4", "#d65a9a"];
+
+function readKept(): Record<number, string> {
+  try {
+    return JSON.parse(localStorage.getItem(KEPT_KEY) ?? "{}");
+  } catch {
+    return {};
+  }
+}
+
 export default function App() {
   const [authed, setAuthed] = useState(!!getToken());
   const [todos, setTodos] = useState<Todo[]>([]);
@@ -62,9 +110,28 @@ export default function App() {
   const [pulling, setPulling] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [tab, setTabState] = useState<Tab>(() => {
+    const saved = localStorage.getItem(TAB_KEY) as Tab | null;
+    return saved && TABS.some((t) => t.id === saved) ? saved : "today";
+  });
+  const [cat, setCatState] = useState<string>(() => localStorage.getItem(CAT_KEY) ?? "");
+  // 정리에서 "그대로 둠"을 누른 것. 이 기기에만 두고 한 달 뒤 다시 후보가 된다.
+  const [kept, setKept] = useState<Record<number, string>>(readKept);
+  const [settings, setSettings] = useState(false);
   const today = todayInSeoul();
+  const now = Date.now();
   // 화면 폭은 세션 중에 거의 안 바뀌므로 처음 한 번만 본다
   const [wide] = useState(() => window.matchMedia("(min-width: 980px)").matches);
+
+  const setTab = (t: Tab) => {
+    setTabState(t);
+    localStorage.setItem(TAB_KEY, t);
+    window.scrollTo({ top: 0 });
+  };
+  const setCat = (c: string) => {
+    setCatState(c);
+    localStorage.setItem(CAT_KEY, c);
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -125,23 +192,20 @@ export default function App() {
     if (authed) void load();
   }, [authed, load]);
 
-  const sections = [...config.categories, UNSORTED];
-
   const sorted = useMemo(
     () => [...todos].sort((a, b) => compareTodos(a, b, today)),
     [todos, today],
   );
 
-  /** 카테고리 안에서는 수동 순서가 우선, 순서에 없는 항목은 기본 정렬로 뒤에. */
-  const rowsOf = useCallback(
-    (name: string) =>
-      sorted
-        .filter((t) => t.category === name)
-        .sort((a, b) => orderIndex(config, name, a.number) - orderIndex(config, name, b.number)),
-    [sorted, config],
+  const colorOf = useCallback(
+    (name: string) => {
+      const i = config.categories.indexOf(name);
+      return i < 0 ? "#8b93a3" : PALETTE[i % PALETTE.length];
+    },
+    [config.categories],
   );
 
-  /** 완료 목록은 펼칠 때만 불러온다. 첫 화면에 필요 없는 호출이다. */
+  /** 완료 목록은 그 탭을 열 때만 불러온다. 첫 화면에 필요 없는 호출이다. */
   const loadClosed = useCallback(async () => {
     try {
       setClosed(await fetchClosedTodos(config));
@@ -214,23 +278,108 @@ export default function App() {
     await saveConfig(next);
   }
 
+  function keep(todo: Todo) {
+    const next = { ...kept, [todo.number]: new Date().toISOString() };
+    setKept(next);
+    localStorage.setItem(KEPT_KEY, JSON.stringify(next));
+  }
+
   if (!authed) {
     return <TokenGate onSaved={() => setAuthed(true)} error={error} />;
   }
 
-  const urgent = sorted.filter((t) => {
-    const s = dueState(t.due, today);
-    return s === "overdue" || s === "today";
-  });
+  const { singles, groups } = splitRecurring(sorted);
+  const continuing = singles.filter((t) => t.category === CONTINUE);
+  const regular = singles.filter((t) => t.category !== CONTINUE);
+  const todayList = regular.filter((t) => isToday(t, today));
+  // 이번 주에 담은 것. 회의와 세션에서 막 담은 일이 마감 없이 들어와 오늘 목록에 안 걸린다.
+  const recent = regular.filter((t) => !isToday(t, today) && daysSince(t.createdAt, now) < 7);
+  const stale = regular
+    .filter((t) => isStale(t, now))
+    .filter((t) => !kept[t.number] || daysSince(kept[t.number], now) >= 30)
+    .sort((a, b) => (a.updatedAt || a.createdAt).localeCompare(b.updatedAt || b.createdAt));
+  const pastRecurring = groups.reduce((n, g) => n + g.items.length - 1, 0);
+  const doneEntries = [...fromTodos(closed), ...fromHub(hub)];
+
+  const counts: Record<Tab, number | null> = {
+    today: todayList.length + recent.length + groups.length,
+    continue: continuing.length,
+    all: todos.length,
+    triage: stale.length + pastRecurring,
+    backlog: hub ? hub.projects.reduce((n, p) => n + p.items.length, 0) : null,
+    done: null,
+  };
+
+  const rowProps = {
+    today,
+    hub,
+    categories: config.categories,
+    colorOf,
+    onChanged: () => void load(),
+  };
+  const isDone = (t: Todo) => checked.has(t.number);
 
   return (
-    <div className="app">
-      <header>
+    <div className={`app${wide ? " wide" : ""}`}>
+      <header className="top">
         <h1>할 일</h1>
-        <button className="ghost" onClick={() => void load()} disabled={loading}>
-          {loading ? "..." : "새로고침"}
-        </button>
+        <AddForm
+          today={today}
+          hub={hub}
+          categories={config.categories}
+          initial={tab === "continue" ? CONTINUE : tab === "all" && cat ? cat : null}
+          onAdded={() => void load()}
+        />
+        <div className="top-actions">
+          <button className="ghost" onClick={() => void load()} disabled={loading} aria-label="새로고침">
+            {loading ? "…" : "↻"}
+          </button>
+          <button
+            className={settings ? "ghost on" : "ghost"}
+            onClick={() => setSettings((v) => !v)}
+            aria-label="설정"
+            aria-expanded={settings}
+          >
+            ⚙
+          </button>
+        </div>
       </header>
+
+      {settings && (
+        <div className="settings">
+          <CategoryManager config={config} onChanged={(cfg) => { setConfig(cfg); void load(); }} />
+          <div className="settings-row">
+            <NotifyToggle />
+            <button
+              className="ghost"
+              onClick={() => {
+                clearToken();
+                setAuthed(false);
+              }}
+            >
+              로그아웃
+            </button>
+          </div>
+        </div>
+      )}
+
+      <nav className="tabs" role="tablist">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            role="tab"
+            aria-selected={tab === t.id}
+            className={`tab${tab === t.id ? " on" : ""}${t.id === "triage" && counts.triage ? " warn" : ""}`}
+            onClick={() => {
+              setTab(t.id);
+              if (t.id === "done") void loadClosed();
+            }}
+          >
+            {t.label}
+            {counts[t.id] ? <span className="n">{counts[t.id]}</span> : null}
+          </button>
+        ))}
+      </nav>
 
       {error && (
         <div className="error-box">
@@ -238,144 +387,771 @@ export default function App() {
         </div>
       )}
 
-      <div className="layout">
-        <div className="col-todos">
-          <AddForm today={today} hub={hub} categories={config.categories} onAdded={() => void load()} />
-
-          {urgent.length > 0 && (
-            <section className="urgent">
-              <h2>지금 볼 것</h2>
-              {urgent.map((t) => (
-                <Row
-                  key={t.number}
-                  todo={t}
-                  today={today}
-                  hub={hub}
-                  done={checked.has(t.number)}
-                  onToggleDone={(on) => void toggleDone(t, on)}
-                  onChanged={() => void load()}
-                />
+      {tab === "today" && (
+        <div className="today-grid">
+          <div>
+            <Block title="마감과 높음" count={todayList.length} empty="오늘 볼 할 일 없음">
+              {todayList.map((t) => (
+                <Row key={t.number} todo={t} {...rowProps} showCategory done={isDone(t)} onToggleDone={(on) => void toggleDone(t, on)} />
               ))}
-            </section>
-          )}
-
-          {sections.map((name) => {
-            const rows = rowsOf(name);
-            if (!rows.length) return null;
-            return (
-              <Section
-                key={name}
-                name={name}
-                rows={rows}
-                today={today}
-                hub={hub}
-                checked={checked}
-                onToggleDone={toggleDone}
-                onChanged={() => void load()}
-                onReorder={(numbers) => void reorder(name, numbers)}
-              />
-            );
-          })}
-
-          <CategoryManager config={config} onChanged={(cfg) => { setConfig(cfg); void load(); }} />
-
-          <DoneSection
-            entries={[...fromTodos(closed), ...fromHub(hub)]}
-            onOpen={() => void loadClosed()}
-            onReopened={() => {
-              void load();
-              void loadClosed();
-            }}
-          />
+            </Block>
+            {recent.length > 0 && (
+              <Block title="이번 주에 담은 것" count={recent.length}>
+                {recent.map((t) => (
+                  <Row key={t.number} todo={t} {...rowProps} showCategory done={isDone(t)} onToggleDone={(on) => void toggleDone(t, on)} />
+                ))}
+              </Block>
+            )}
+            {stale.length + pastRecurring > 0 && (
+              <button className="nudge" onClick={() => setTab("triage")}>
+                정리할 것 {stale.length + pastRecurring}건 <span>→</span>
+              </button>
+            )}
+          </div>
+          <div>
+            {continuing.length > 0 && (
+              <Block title="이어가기" count={continuing.length}>
+                <div className="cont-list">
+                  {continuing.map((t) => (
+                    <ContinueCard key={t.number} todo={t} hub={hub} compact done={isDone(t)} onToggleDone={(on) => void toggleDone(t, on)} />
+                  ))}
+                </div>
+              </Block>
+            )}
+            {groups.length > 0 && (
+              <Block title="정기" count={groups.length}>
+                {groups.map((g) => (
+                  <RecurringRow key={g.base} group={g} checked={checked} onToggleDone={(t, on) => void toggleDone(t, on)} />
+                ))}
+              </Block>
+            )}
+          </div>
         </div>
+      )}
 
-        {hub && hub.projects.length > 0 && (
-          <aside className="col-hub">
-            <HubSection
-              hub={hub}
-              wide={wide}
-              todos={todos}
-              sort={config.backlogSort}
-              onSort={(s) => void setBacklogSort(s)}
-              pulling={pulling}
-              onPull={(slug, title) => void pullToRun(slug, title)}
-            />
-          </aside>
-        )}
-      </div>
+      {tab === "continue" && (
+        <Block title="여러 세션에 걸쳐 이어 가는 작업" count={continuing.length} empty="이어 가는 작업 없음">
+          <div className="cont-grid">
+            {continuing.map((t) => (
+              <ContinueCard key={t.number} todo={t} hub={hub} done={isDone(t)} onToggleDone={(on) => void toggleDone(t, on)} />
+            ))}
+          </div>
+        </Block>
+      )}
 
-      <footer>
-        <NotifyToggle />
-        <button
-          className="ghost"
-          onClick={() => {
-            clearToken();
-            setAuthed(false);
+      {tab === "all" && (
+        <AllView
+          todos={singles}
+          groups={groups}
+          config={config}
+          cat={cat}
+          setCat={setCat}
+          now={now}
+          colorOf={colorOf}
+          checked={checked}
+          rowProps={rowProps}
+          onToggleDone={(t, on) => void toggleDone(t, on)}
+          onReorder={(c, numbers) => void reorder(c, numbers)}
+        />
+      )}
+
+      {tab === "triage" && (
+        <TriageView
+          stale={stale}
+          groups={groups.filter((g) => g.items.length > 1)}
+          now={now}
+          hub={hub}
+          colorOf={colorOf}
+          checked={checked}
+          onToggleDone={(t, on) => void toggleDone(t, on)}
+          onKeep={keep}
+          onChanged={() => void load()}
+        />
+      )}
+
+      {tab === "backlog" &&
+        (hub && hub.projects.length > 0 ? (
+          <HubSection
+            hub={hub}
+            todos={todos}
+            sort={config.backlogSort}
+            onSort={(s) => void setBacklogSort(s)}
+            pulling={pulling}
+            onPull={(slug, title) => void pullToRun(slug, title)}
+          />
+        ) : (
+          <p className="empty">백로그 없음</p>
+        ))}
+
+      {tab === "done" && (
+        <DoneView
+          entries={doneEntries}
+          onReopened={() => {
+            void load();
+            void loadClosed();
           }}
-        >
-          로그아웃
-        </button>
-      </footer>
+        />
+      )}
     </div>
   );
 }
 
-/** 카테고리 한 섹션. 행을 끌어다 놓으면 순서가 저장된다(데스크톱). */
-function Section({
-  name,
-  rows,
-  today,
-  hub,
-  checked,
-  onToggleDone,
-  onChanged,
-  onReorder,
+function Block({
+  title,
+  count,
+  empty,
+  children,
 }: {
-  name: string;
-  rows: Todo[];
+  title: string;
+  count?: number;
+  empty?: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <section className="block">
+      <h2>
+        {title} {count ? <span className="count">{count}</span> : null}
+      </h2>
+      {count === 0 && empty ? <p className="empty">{empty}</p> : children}
+    </section>
+  );
+}
+
+type RowShared = {
   today: string;
   hub: HubFile | null;
-  checked: Set<number>;
-  onToggleDone: (todo: Todo, done: boolean) => void;
+  categories: string[];
+  colorOf: (name: string) => string;
   onChanged: () => void;
-  onReorder: (numbers: number[]) => void;
+};
+
+/** 전체 탭. 카테고리는 가로 칩으로 고르고, 목록은 담은 시점으로 묶는다. */
+function AllView({
+  todos,
+  groups,
+  config,
+  cat,
+  setCat,
+  now,
+  colorOf,
+  checked,
+  rowProps,
+  onToggleDone,
+  onReorder,
+}: {
+  todos: Todo[];
+  groups: RecurringGroup[];
+  config: AppConfig;
+  cat: string;
+  setCat: (c: string) => void;
+  now: number;
+  colorOf: (name: string) => string;
+  checked: Set<number>;
+  rowProps: RowShared;
+  onToggleDone: (t: Todo, on: boolean) => void;
+  onReorder: (category: string, numbers: number[]) => void;
 }) {
+  const [showOld, setShowOld] = useState(false);
+  const names = [...config.categories, UNSORTED];
+  const countOf = (name: string) =>
+    todos.filter((t) => t.category === name).length +
+    groups.filter((g) => g.items[0].category === name).reduce((n, g) => n + g.items.length, 0);
+  // 지워진 카테고리를 고른 채로 남아 있으면 전체로 돌린다
+  const current = names.includes(cat) ? cat : "";
+  const rows = todos
+    .filter((t) => !current || t.category === current)
+    .sort((a, b) =>
+      current ? orderIndex(config, current, a.number) - orderIndex(config, current, b.number) : 0,
+    );
+  const recurring = groups.filter((g) => !current || g.items[0].category === current);
   const dragging = useRef<number | null>(null);
 
   function dropOn(target: number) {
     const from = dragging.current;
     dragging.current = null;
-    if (from === null || from === target) return;
-    // 끌던 것을 빼고, 놓은 자리(대상 항목 위치)에 끼운다
+    if (!current || from === null || from === target) return;
     const numbers = rows.map((t) => t.number).filter((n) => n !== from);
     numbers.splice(numbers.indexOf(target), 0, from);
-    onReorder(numbers);
+    onReorder(current, numbers);
   }
 
   return (
-    <section>
-      <h2>
-        {name} <span className="count">{rows.length}</span>
-      </h2>
-      {rows.map((t) => (
-        <div
-          key={t.number}
-          draggable
-          onDragStart={() => (dragging.current = t.number)}
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={() => dropOn(t.number)}
-        >
-          <Row
+    <>
+      <div className="cat-chips">
+        <button className={current ? "cat-chip" : "cat-chip on"} onClick={() => setCat("")}>
+          전체 <span className="n">{todos.length + groups.reduce((n, g) => n + g.items.length, 0)}</span>
+        </button>
+        {names.map((name) => {
+          const n = countOf(name);
+          if (!n && name !== current) return null;
+          return (
+            <button
+              key={name}
+              className={current === name ? "cat-chip on" : "cat-chip"}
+              style={{ "--cat": colorOf(name) } as React.CSSProperties}
+              onClick={() => setCat(name)}
+            >
+              <i className="dot" />
+              {name} <span className="n">{n}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {recurring.length > 0 && (
+        <Block title="정기" count={recurring.length}>
+          {recurring.map((g) => (
+            <RecurringRow key={g.base} group={g} checked={checked} onToggleDone={onToggleDone} />
+          ))}
+        </Block>
+      )}
+
+      {BANDS.map((band) => {
+        const list = rows.filter((t) => bandOf(t, now) === band);
+        if (!list.length) return null;
+        const folded = band === "그 이전" && !showOld;
+        return (
+          <section className="block" key={band}>
+            <h2>
+              {band} <span className="count">{list.length}</span>
+            </h2>
+            {folded ? (
+              <button className="ghost more" onClick={() => setShowOld(true)}>
+                {list.length}건 펼치기
+              </button>
+            ) : (
+              list.map((t) => (
+                <div
+                  key={t.number}
+                  draggable={!!current}
+                  onDragStart={() => (dragging.current = t.number)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={() => dropOn(t.number)}
+                >
+                  <Row
+                    todo={t}
+                    {...rowProps}
+                    showCategory={!current}
+                    done={checked.has(t.number)}
+                    onToggleDone={(on) => onToggleDone(t, on)}
+                  />
+                </div>
+              ))
+            )}
+          </section>
+        );
+      })}
+      {rows.length === 0 && recurring.length === 0 && <p className="empty">할 일 없음</p>}
+    </>
+  );
+}
+
+/**
+ * 정리 탭. 회의와 세션에서 담고 잊힌 것을 주에 한 번 훑어 끝내거나 지운다.
+ * 아직 할 것이면 "그대로 둠"으로 한 달 동안 후보에서 뺀다.
+ */
+function TriageView({
+  stale,
+  groups,
+  now,
+  hub,
+  colorOf,
+  checked,
+  onToggleDone,
+  onKeep,
+  onChanged,
+}: {
+  stale: Todo[];
+  groups: RecurringGroup[];
+  now: number;
+  hub: HubFile | null;
+  colorOf: (name: string) => string;
+  checked: Set<number>;
+  onToggleDone: (t: Todo, on: boolean) => void;
+  onKeep: (t: Todo) => void;
+  onChanged: () => void;
+}) {
+  return (
+    <>
+      {groups.length > 0 && (
+        <Block title="지난 기간이 남은 정기 할 일" count={groups.length}>
+          {groups.map((g) => (
+            <RecurringRow key={g.base} group={g} checked={checked} onToggleDone={onToggleDone} />
+          ))}
+        </Block>
+      )}
+      <Block title="한 달 넘게 손대지 않은 할 일" count={stale.length} empty="정리할 것 없음">
+        {stale.map((t) => (
+          <TriageRow
+            key={t.number}
             todo={t}
-            today={today}
+            days={daysSince(t.updatedAt || t.createdAt, now)}
             hub={hub}
+            color={colorOf(t.category)}
             done={checked.has(t.number)}
-            onToggleDone={(on) => onToggleDone(t, on)}
+            onDone={() => onToggleDone(t, !checked.has(t.number))}
+            onKeep={() => onKeep(t)}
             onChanged={onChanged}
           />
+        ))}
+      </Block>
+    </>
+  );
+}
+
+function TriageRow({
+  todo,
+  days,
+  hub,
+  color,
+  done,
+  onDone,
+  onKeep,
+  onChanged,
+}: {
+  todo: Todo;
+  days: number;
+  hub: HubFile | null;
+  color: string;
+  done: boolean;
+  onDone: () => void;
+  onKeep: () => void;
+  onChanged: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [dropped, setDropped] = useState(false);
+  const summary = summaryOf(todo.body);
+  const projectTitle = hub?.projects.find((p) => p.slug === todo.project)?.title;
+
+  async function drop() {
+    setBusy(true);
+    try {
+      await dropTodo(todo.number);
+      setDropped(true);
+      onChanged();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className={`triage-row${done || dropped ? " checked" : ""}`}>
+      <div className="body">
+        <a href={todo.url} target="_blank" rel="noreferrer" className="title">
+          {todo.title}
+        </a>
+        {summary && <p className="summary">{summary}</p>}
+        <div className="meta">
+          <span className="cat" style={{ "--cat": color } as React.CSSProperties}>
+            <i className="dot" />
+            {todo.category}
+          </span>
+          {projectTitle && <span className="tag project">{shortTitle(projectTitle)}</span>}
+          <span className="age stale">{Math.floor(days / 30) || 1}개월 손 안 댐</span>
         </div>
-      ))}
+      </div>
+      <div className="triage-acts">
+        {dropped ? (
+          <span className="dim">지움</span>
+        ) : (
+          <>
+            <button className={done ? "act on" : "act"} disabled={busy} onClick={onDone}>
+              {done ? "되돌리기" : "끝냄"}
+            </button>
+            {!done && (
+              <>
+                <button className="act" disabled={busy} onClick={onKeep}>
+                  그대로 둠
+                </button>
+                <button className="act danger" disabled={busy} onClick={() => void drop()}>
+                  지움
+                </button>
+              </>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** 정기 할 일 한 줄. 같은 제목의 기간별 이슈를 칩으로 모은다. */
+function RecurringRow({
+  group,
+  checked,
+  onToggleDone,
+}: {
+  group: RecurringGroup;
+  checked: Set<number>;
+  onToggleDone: (t: Todo, on: boolean) => void;
+}) {
+  const open = group.items.filter((t) => !checked.has(t.number));
+  const past = open.slice(0, -1);
+  return (
+    <div className="row recurring">
+      <div className="body">
+        <span className="title">{group.base}</span>
+        <div className="periods">
+          {group.items.map((t, i) => {
+            const on = checked.has(t.number);
+            return (
+              <button
+                key={t.number}
+                className={`period${on ? " on" : ""}${i === group.items.length - 1 ? " latest" : ""}`}
+                onClick={() => onToggleDone(t, !on)}
+                aria-label={`${periodLabel(t.title)} ${on ? "되돌리기" : "끝냄"}`}
+              >
+                {on ? "✓ " : ""}
+                {periodLabel(t.title)}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      {past.length > 0 && (
+        <button className="act" onClick={() => past.forEach((t) => onToggleDone(t, true))}>
+          지난 {past.length}건 끝냄
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** 이어가기 카드. 같은 장비면 세션을 바로 연다. 다른 장비면 HUB를 보고 새 세션에서 이어 간다. */
+function ContinueCard({
+  todo,
+  hub,
+  compact,
+  done,
+  onToggleDone,
+}: {
+  todo: Todo;
+  hub: HubFile | null;
+  compact?: boolean;
+  done: boolean;
+  onToggleDone: (on: boolean) => void;
+}) {
+  const origin = readOrigin(todo.origin);
+  const projectTitle = hub?.projects.find((p) => p.slug === todo.project)?.title;
+  const summary = summaryOf(todo.body);
+  return (
+    <article className={`cont-card${compact ? " compact" : ""}${done ? " checked" : ""}`}>
+      <div className="cont-head">
+        <input
+          type="checkbox"
+          className="check"
+          checked={done}
+          onChange={(e) => onToggleDone(e.target.checked)}
+          aria-label={done ? "되돌리기" : "완료"}
+        />
+        <h3>{todo.title}</h3>
+      </div>
+      {summary && <p className="summary">{summary}</p>}
+      <div className="cont-foot">
+        <div className="meta">
+          {projectTitle && <span className="tag project">{shortTitle(projectTitle)}</span>}
+          {origin && <span className="tag">{origin.label}</span>}
+          <span className="tag when">{since(todo.updatedAt || todo.createdAt)}</span>
+        </div>
+        <div className="cont-acts">
+          {todo.project && (
+            <a className="go" href={hubUrl(todo.project)} target="_blank" rel="noreferrer">
+              HUB
+            </a>
+          )}
+          <a className="go" href={todo.url} target="_blank" rel="noreferrer">
+            이슈
+          </a>
+          {todo.project && <CopyPhrase text={`${todo.project} 이어가기`} />}
+          {origin?.session && (
+            <a
+              className="open-session"
+              href={origin.session}
+              // cursor:// 링크는 새 탭 없이 앱으로 넘긴다. 위키 홈 iframe 안에서도 눌리게 _top
+              target={origin.session.startsWith("cursor:") ? "_top" : "_blank"}
+              rel="noreferrer"
+            >
+              세션 열기
+            </a>
+          )}
+        </div>
+      </div>
+    </article>
+  );
+}
+
+/**
+ * 다른 장비나 새 세션에서 이어 갈 때 붙여 넣을 문장. 세션 링크는 담은 장비에서만 열린다.
+ */
+function CopyPhrase({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      className="act"
+      title={text}
+      onClick={() => {
+        void navigator.clipboard?.writeText(text).then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1500);
+        });
+      }}
+    >
+      {copied ? "복사됨" : "새 세션용 문장"}
+    </button>
+  );
+}
+
+/** 끝낸 것 탭. 최근 7일과 그 이전으로 가르고 오래된 쪽은 접어 둔다. */
+function DoneView({ entries, onReopened }: { entries: DoneEntry[]; onReopened: () => void }) {
+  const [showOlder, setShowOlder] = useState(false);
+  const { recent, older } = splitByRecency(entries, Date.now());
+
+  return (
+    <section className="done">
+      <h2>
+        최근 7일 <span className="count">{recent.length}</span>
+      </h2>
+      {recent.length === 0 ? (
+        <p className="empty">없음</p>
+      ) : (
+        recent.map((e) => <DoneRow key={e.key} entry={e} onReopened={onReopened} />)
+      )}
+
+      {older.length > 0 && (
+        <>
+          <button className="ghost more" onClick={() => setShowOlder((v) => !v)}>
+            {showOlder ? "그 이전 접기" : `그 이전 ${older.length}건 보기`}
+          </button>
+          {showOlder &&
+            older.map((e) => <DoneRow key={e.key} entry={e} onReopened={onReopened} />)}
+        </>
+      )}
     </section>
+  );
+}
+
+/**
+ * 할 일 한 줄. 평소엔 제목과 꼭 필요한 표시만 두고, 제목을 누르면 고치는 자리가 열린다.
+ * 줄마다 버튼 다섯 개를 늘어놓았더니 60건이 화면 열 장을 넘었다.
+ */
+function Row({
+  todo,
+  today,
+  hub,
+  categories,
+  colorOf,
+  showCategory,
+  done,
+  onToggleDone,
+  onChanged,
+}: RowShared & {
+  todo: Todo;
+  showCategory?: boolean;
+  done: boolean;
+  onToggleDone: (done: boolean) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [dating, setDating] = useState(false);
+  // 시간까지 적힌 마감이면 시간 칸을 열어둔 채로 시작한다. 날짜만 고치다 시간을 지우지 않게.
+  const [withTime, setWithTime] = useState(() => (todo.due?.length ?? 0) > 10);
+  // 삭제는 한 번 눌러 묻고 다시 눌러야 실행한다. 훑다가 스쳐도 지워지지 않게.
+  const [asking, setAsking] = useState(false);
+  useEffect(() => {
+    if (!asking) return;
+    const t = setTimeout(() => setAsking(false), 5000);
+    return () => clearTimeout(t);
+  }, [asking]);
+  const state = dueState(todo.due, today);
+  const origin = readOrigin(todo.origin);
+  const projectTitle = hub?.projects.find((p) => p.slug === todo.project)?.title;
+  const summary = open ? summaryOf(todo.body) : "";
+
+  async function run(fn: () => Promise<void>) {
+    setBusy(true);
+    try {
+      await fn();
+      onChanged();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const nextPriority: Priority =
+    todo.priority === "보통" ? "높음" : todo.priority === "높음" ? "낮음" : "보통";
+
+  // 끝낸 것은 체크만 살리고 나머지는 잠근다. 잘못 누른 김에 다른 것까지 바뀌면 곤란하다.
+  const locked = busy || done;
+
+  return (
+    <div
+      className={`row${busy ? " busy" : ""}${done ? " checked" : ""}${open ? " open" : ""} p-${todo.priority}`}
+    >
+      <input
+        type="checkbox"
+        className="check"
+        checked={done}
+        onChange={(e) => onToggleDone(e.target.checked)}
+        aria-label={done ? "되돌리기" : "완료"}
+        disabled={busy}
+      />
+      <div className="body">
+        <button className="title" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+          {todo.title}
+        </button>
+        <div className="meta">
+          {showCategory && (
+            <span className="cat" style={{ "--cat": colorOf(todo.category) } as React.CSSProperties}>
+              <i className="dot" />
+              {todo.category}
+            </span>
+          )}
+          {todo.priority !== "보통" && <span className={`prio-tag p${todo.priority}`}>{todo.priority}</span>}
+          {todo.inProgress && <span className="tag live">진행중</span>}
+          {state && <span className={`due ${state}`}>{dueLabel(todo.due!, state)}</span>}
+          {projectTitle && <span className="tag project">{shortTitle(projectTitle)}</span>}
+          {todo.createdAt && <span className="tag when">{since(todo.createdAt)}</span>}
+        </div>
+
+        {open && (
+          <div className="detail">
+            {summary && <p className="summary">{summary}</p>}
+            <div className="tools">
+              <label>
+                <span>우선순위</span>
+                {/* 글자로 적는다. 점 하나로 뒀더니 무슨 뜻인지도, 누를 수 있는지도 안 보였다. */}
+                <button
+                  className={`prio p${todo.priority}`}
+                  disabled={locked}
+                  onClick={() => void run(() => setPriority(todo, nextPriority))}
+                >
+                  {todo.priority}
+                </button>
+              </label>
+
+              <label>
+                <span>카테고리</span>
+                <select
+                  value={todo.category === UNSORTED ? "" : todo.category}
+                  disabled={locked}
+                  onChange={(e) => void run(() => setCategoryLabel(todo, e.target.value || null))}
+                >
+                  <option value="">미분류</option>
+                  {categories.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                <span>프로젝트</span>
+                <select
+                  value={todo.project ?? ""}
+                  disabled={locked}
+                  onChange={(e) => void run(() => setProject(todo, e.target.value || null))}
+                >
+                  <option value="">연결 없음</option>
+                  {hub?.projects.map((p) => (
+                    <option key={p.slug} value={p.slug}>
+                      {tidy(p.title)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                <span>마감</span>
+                {dating ? (
+                  <span className="due-edit">
+                    <input
+                      type={withTime ? "datetime-local" : "date"}
+                      autoFocus
+                      defaultValue={todo.due ? todo.due.replace(" ", "T") : ""}
+                      onChange={(e) => {
+                        const v = e.target.value; // 다 채워지기 전에는 빈 값이라 중간에 안 새어 나간다
+                        setDating(false);
+                        void run(() => setDue(todo, v ? v.replace("T", " ") : null));
+                      }}
+                      onBlur={() => setDating(false)}
+                    />
+                    <button
+                      type="button"
+                      className={withTime ? "chip on" : "chip"}
+                      // 칩을 누를 때 입력칸이 blur되어 편집이 닫히는 걸 막는다
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => setWithTime((v) => !v)}
+                    >
+                      시간
+                    </button>
+                  </span>
+                ) : (
+                  <span className="due-edit">
+                    <button className="chip" disabled={locked} onClick={() => setDating(true)}>
+                      {todo.due ?? "+ 마감"}
+                    </button>
+                    {todo.due && (
+                      <button className="chip" disabled={locked} onClick={() => void run(() => setDue(todo, null))}>
+                        비우기
+                      </button>
+                    )}
+                  </span>
+                )}
+              </label>
+            </div>
+
+            <div className="links">
+              <a className="go" href={todo.url} target="_blank" rel="noreferrer">
+                이슈 #{todo.number}
+              </a>
+              {todo.project && (
+                <a className="go" href={hubUrl(todo.project)} target="_blank" rel="noreferrer">
+                  HUB
+                </a>
+              )}
+              {origin &&
+                (origin.session ? (
+                  <a
+                    className="go"
+                    href={origin.session}
+                    // cursor:// 링크는 새 탭 없이 앱으로 넘긴다. 위키 홈 iframe 안에서도 눌리게 _top
+                    target={origin.session.startsWith("cursor:") ? "_top" : "_blank"}
+                    rel="noreferrer"
+                  >
+                    {origin.label} 세션
+                  </a>
+                ) : (
+                  <span className="dim">{origin.label}</span>
+                ))}
+              <span className="spacer" />
+              {!done &&
+                (asking ? (
+                  <>
+                    <button
+                      className="act danger"
+                      disabled={busy}
+                      onClick={() => {
+                        setAsking(false);
+                        void run(() => dropTodo(todo.number));
+                      }}
+                    >
+                      {busy ? "지우는 중" : "삭제"}
+                    </button>
+                    <button className="act" disabled={busy} onClick={() => setAsking(false)}>
+                      취소
+                    </button>
+                  </>
+                ) : (
+                  <button className="act" disabled={busy} onClick={() => setAsking(true)}>
+                    삭제
+                  </button>
+                ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -442,11 +1218,14 @@ function AddForm({
   today,
   hub,
   categories,
+  initial,
   onAdded,
 }: {
   today: string;
   hub: HubFile | null;
   categories: string[];
+  /** 보고 있는 탭이나 카테고리. 거기서 담으면 그 카테고리로 들어간다 */
+  initial: string | null;
   onAdded: () => void;
 }) {
   const [title, setTitle] = useState("");
@@ -458,7 +1237,7 @@ function AddForm({
   const [more, setMore] = useState(false);
   const [busy, setBusy] = useState(false);
   const open = title.trim().length > 0;
-  const chosen = category ?? categories[0] ?? null;
+  const chosen = category ?? (initial && categories.includes(initial) ? initial : null) ?? categories[0] ?? null;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -487,7 +1266,7 @@ function AddForm({
     <form className="add" onSubmit={submit}>
       <input
         value={title}
-        placeholder="새 할 일"
+        placeholder="새 할 일 담기"
         onChange={(e) => setTitle(e.target.value)}
         enterKeyHint="done"
       />
@@ -567,191 +1346,6 @@ function AddForm({
         </button>
       )}
     </form>
-  );
-}
-
-function Row({
-  todo,
-  today,
-  hub,
-  done,
-  onToggleDone,
-  onChanged,
-}: {
-  todo: Todo;
-  today: string;
-  hub: HubFile | null;
-  done: boolean;
-  onToggleDone: (done: boolean) => void;
-  onChanged: () => void;
-}) {
-  const [busy, setBusy] = useState(false);
-  const [linking, setLinking] = useState(false);
-  const [dating, setDating] = useState(false);
-  // 시간까지 적힌 마감이면 시간 칸을 열어둔 채로 시작한다. 날짜만 고치다 시간을 지우지 않게.
-  const [withTime, setWithTime] = useState(() => (todo.due?.length ?? 0) > 10);
-  // 삭제는 한 번 눌러 묻고 다시 눌러야 실행한다. 훑다가 스쳐도 지워지지 않게.
-  const [asking, setAsking] = useState(false);
-  useEffect(() => {
-    if (!asking) return;
-    const t = setTimeout(() => setAsking(false), 5000);
-    return () => clearTimeout(t);
-  }, [asking]);
-  const state = dueState(todo.due, today);
-  const origin = readOrigin(todo.origin);
-  const projectTitle = hub?.projects.find((p) => p.slug === todo.project)?.title;
-
-  async function run(fn: () => Promise<void>) {
-    setBusy(true);
-    try {
-      await fn();
-      onChanged();
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const nextPriority: Priority =
-    todo.priority === "보통" ? "높음" : todo.priority === "높음" ? "낮음" : "보통";
-
-  // 끝낸 것은 체크만 살리고 나머지는 잠근다. 잘못 누른 김에 다른 것까지 바뀌면 곤란하다.
-  const locked = busy || done;
-
-  return (
-    <div className={`row${busy ? " busy" : ""}${done ? " checked" : ""}${todo.project ? " linked" : ""}`}>
-      <input
-        type="checkbox"
-        className="check"
-        checked={done}
-        onChange={(e) => onToggleDone(e.target.checked)}
-        aria-label={done ? "되돌리기" : "완료"}
-        disabled={busy}
-      />
-      <div className="body">
-        <a href={todo.url} target="_blank" rel="noreferrer">
-          {todo.title}
-        </a>
-        <div className="meta">
-          {/* 글자로 적는다. 점 하나로 뒀더니 무슨 뜻인지도, 누를 수 있는지도 안 보였다. */}
-          <button
-            className={`prio p${todo.priority}`}
-            disabled={locked}
-            onClick={() => void run(() => setPriority(todo, nextPriority))}
-            aria-label={`우선순위 ${todo.priority}, 눌러서 바꾸기`}
-          >
-            {todo.priority}
-          </button>
-
-          {/* 프로젝트 연결 — 누르면 바꾸거나 해제. 할 일 일부만 프로젝트에 붙는다. */}
-          {linking ? (
-            <select
-              autoFocus
-              value={todo.project ?? ""}
-              onChange={(e) => {
-                setLinking(false);
-                void run(() => setProject(todo, e.target.value || null));
-              }}
-              onBlur={() => setLinking(false)}
-            >
-              <option value="">연결 없음</option>
-              {hub?.projects.map((p) => (
-                <option key={p.slug} value={p.slug}>
-                  {p.title}
-                </option>
-              ))}
-            </select>
-          ) : todo.project ? (
-            <button className="tag project" disabled={locked} onClick={() => setLinking(true)}>
-              {projectTitle ?? todo.project}
-            </button>
-          ) : (
-            <button className="tag link-add" disabled={locked} onClick={() => setLinking(true)}>
-              + 프로젝트
-            </button>
-          )}
-
-          {todo.inProgress && <span className="tag">진행중</span>}
-
-          {/* 마감 — 눌러서 고치거나 비운다. 마감이 있어야 "지금 볼 것"에 올라온다. */}
-          {dating ? (
-            <span className="due-edit">
-              <input
-                type={withTime ? "datetime-local" : "date"}
-                autoFocus
-                defaultValue={todo.due ? todo.due.replace(" ", "T") : ""}
-                onChange={(e) => {
-                  const v = e.target.value; // 다 채워지기 전에는 빈 값이라 중간에 안 새어 나간다
-                  setDating(false);
-                  void run(() => setDue(todo, v ? v.replace("T", " ") : null));
-                }}
-                onBlur={() => setDating(false)}
-              />
-              <button
-                type="button"
-                className={withTime ? "chip on" : "chip"}
-                // 칩을 누를 때 입력칸이 blur되어 편집이 닫히는 걸 막는다
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => setWithTime((v) => !v)}
-              >
-                시간
-              </button>
-            </span>
-          ) : state ? (
-            <button
-              className={`due ${state}`}
-              disabled={locked}
-              onClick={() => setDating(true)}
-              aria-label={`마감 ${todo.due}, 눌러서 바꾸기`}
-            >
-              {dueLabel(todo.due!, state)}
-            </button>
-          ) : (
-            <button className="tag due-add" disabled={locked} onClick={() => setDating(true)}>
-              + 마감
-            </button>
-          )}
-          {origin &&
-            (origin.session ? (
-              // cursor:// 링크는 새 탭 없이 앱으로 넘긴다. 위키 홈 iframe 안에서도 눌리게 _top
-              <a
-                className="tag origin"
-                href={origin.session}
-                target={origin.session.startsWith("cursor:") ? "_top" : "_blank"}
-                rel="noreferrer"
-              >
-                {origin.label} ↗
-              </a>
-            ) : (
-              <span className="tag origin">{origin.label}</span>
-            ))}
-          {todo.createdAt && <span className="tag when">{since(todo.createdAt)}</span>}
-
-          {/* 할 필요가 없어진 것. 끝낸 것과 갈라서 끝낸 것 목록에 안 섞이게 한다. */}
-          {!done &&
-            (asking ? (
-              <>
-                <button
-                  className="act danger"
-                  disabled={busy}
-                  onClick={() => {
-                    setAsking(false);
-                    void run(() => dropTodo(todo.number));
-                  }}
-                >
-                  {busy ? "지우는 중" : "삭제"}
-                </button>
-                <button className="act" disabled={busy} onClick={() => setAsking(false)}>
-                  취소
-                </button>
-              </>
-            ) : (
-              <button className="act" disabled={busy} onClick={() => setAsking(true)}>
-                삭제
-              </button>
-            ))}
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -862,7 +1456,6 @@ function hubUrl(slug: string) {
 
 function HubSection({
   hub,
-  wide,
   todos,
   sort,
   onSort,
@@ -870,7 +1463,6 @@ function HubSection({
   onPull,
 }: {
   hub: HubFile;
-  wide: boolean;
   todos: Todo[];
   sort: BacklogSort;
   onSort: (s: BacklogSort) => void;
@@ -899,9 +1491,9 @@ function HubSection({
         const stale = staleOf(p, now);
         const active = pulled(p.slug);
         return (
-          // 폰에서는 전부 접혀 나온다. 실행 줄로 끌어온 게 있는 프로젝트는 지금 손대는
-          // 프로젝트라 펼쳐 둔다 — 접힌 채로는 아래까지 내려가 눌러야 보인다.
-          <details key={p.slug} open={wide || active > 0}>
+          // 전부 접혀 나온다. 프로젝트가 50개를 넘어 펼쳐 두면 훑을 수가 없다. 실행 줄로
+          // 끌어온 게 있는 프로젝트는 지금 손대는 프로젝트라 펼쳐 둔다.
+          <details key={p.slug} open={active > 0}>
             <summary>
               {tidy(p.title)} <span className="count">{p.items.length}</span>
               {active > 0 && <span className="pulled">실행 {active}</span>}
@@ -964,48 +1556,6 @@ function HubSection({
         {hub.drawnAt} 기준 · 커밋 {hub.commit} ({hub.commitDate})
       </p>
     </section>
-  );
-}
-
-/**
- * 끝낸 것. 접혀 있고 펼칠 때만 닫힌 이슈를 불러온다.
- * 최근 7일과 그 이전으로 가르는데, 오래된 쪽은 한 번 더 접어 둔다.
- */
-function DoneSection({
-  entries,
-  onOpen,
-  onReopened,
-}: {
-  entries: DoneEntry[];
-  onOpen: () => void;
-  onReopened: () => void;
-}) {
-  const [showOlder, setShowOlder] = useState(false);
-  const { recent, older } = splitByRecency(entries, Date.now());
-
-  return (
-    <details className="done" onToggle={(e) => e.currentTarget.open && onOpen()}>
-      <summary>
-        끝낸 것 <span className="count">{entries.length}</span>
-      </summary>
-
-      <h3>최근 7일</h3>
-      {recent.length === 0 ? (
-        <p className="empty">없음</p>
-      ) : (
-        recent.map((e) => <DoneRow key={e.key} entry={e} onReopened={onReopened} />)
-      )}
-
-      {older.length > 0 && (
-        <>
-          <button className="ghost more" onClick={() => setShowOlder((v) => !v)}>
-            {showOlder ? "그 이전 접기" : `그 이전 ${older.length}건 보기`}
-          </button>
-          {showOlder &&
-            older.map((e) => <DoneRow key={e.key} entry={e} onReopened={onReopened} />)}
-        </>
-      )}
-    </details>
   );
 }
 

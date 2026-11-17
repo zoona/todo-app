@@ -171,6 +171,7 @@ describe("compareTodos", () => {
     due: null,
     origin: null,
     createdAt: "2026-09-05T00:00:00Z",
+    updatedAt: "2026-09-05T00:00:00Z",
     closedAt: null,
     comments: 0,
     body: "",

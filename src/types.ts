@@ -27,6 +27,8 @@ export type Todo = {
   due: string | null; // YYYY-MM-DD 또는 YYYY-MM-DD HH:mm
   origin: string | null;
   createdAt: string;
+  /** 마지막으로 바뀐 시각. 손 안 댄 지 오래된 것을 가리는 데 쓴다 */
+  updatedAt: string;
   /** 닫힌 시각. 열려 있으면 null */
   closedAt: string | null;
   /** 댓글 수. 닫으며 남긴 기록이 여기 있어 읽을 게 있는지 알려준다. */

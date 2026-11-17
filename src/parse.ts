@@ -68,6 +68,7 @@ export type RawIssue = {
   body: string | null;
   labels: ({ name: string } | string)[];
   created_at?: string;
+  updated_at?: string;
   closed_at?: string | null;
   state_reason?: string | null;
   comments?: number;
@@ -87,6 +88,7 @@ export function toTodo(issue: RawIssue, categories: string[]): Todo {
     due: parseDue(issue.body),
     origin: parseOrigin(issue.body),
     createdAt: issue.created_at ?? "",
+    updatedAt: issue.updated_at ?? issue.created_at ?? "",
     closedAt: issue.closed_at ?? null,
     comments: issue.comments ?? 0,
     body: issue.body ?? "",
