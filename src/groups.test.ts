@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { shortTitle, bandOf, isStale, isToday, periodLabel, recurringOf, splitRecurring, summaryOf } from "./groups";
+import { shortTitle, bandOf, isStale, isToday, periodLabel, recurringOf, splitRecurring, summaryOf, detailOf, spansOf } from "./groups";
 import type { Todo } from "./types";
 
 const NOW = Date.parse("2026-11-17T00:00:00Z");
@@ -74,5 +74,33 @@ describe("나누기", () => {
   it("본문 첫 줄은 필드 줄과 불릿을 건너뛴다", () => {
     expect(summaryOf("\n- 불릿\n무엇을 왜\n\n출처: x")).toBe("무엇을 왜");
     expect(summaryOf("출처: 웹앱")).toBe("");
+  });
+});
+
+describe("detailOf", () => {
+  it("문단, 굵은 줄 제목, 불릿을 나누고 출처와 프로젝트 줄은 뺀다", () => {
+    const body = "무엇과 왜\n\n**공유**\n- 하나 **굵게**\n- 둘\n\n완료 조건: 끝\n\n프로젝트: omics-agent\n\n출처: 회사 맥";
+    expect(detailOf(body)).toEqual([
+      { kind: "p", text: "무엇과 왜" },
+      { kind: "h", text: "공유" },
+      { kind: "ul", items: ["하나 **굵게**", "둘"] },
+      { kind: "p", text: "완료 조건: 끝" },
+    ]);
+  });
+  it("비어 있으면 빈 목록", () => {
+    expect(detailOf("출처: 웹앱")).toEqual([]);
+  });
+});
+
+describe("spansOf", () => {
+  it("굵게, 마크다운 링크, 맨 주소를 가른다", () => {
+    expect(spansOf("a **b** [c](https://x.io/1) d https://y.io")).toEqual([
+      { kind: "text", text: "a " },
+      { kind: "bold", text: "b" },
+      { kind: "text", text: " " },
+      { kind: "link", text: "c", href: "https://x.io/1" },
+      { kind: "text", text: " d " },
+      { kind: "link", text: "https://y.io", href: "https://y.io" },
+    ]);
   });
 });

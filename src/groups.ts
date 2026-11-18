@@ -95,3 +95,61 @@ export function summaryOf(body: string): string {
     .find((l) => l && !FIELD.test(l) && !l.startsWith("- "));
   return line ?? "";
 }
+
+/** 펼쳤을 때 보여 줄 본문 덩어리 */
+export type Block =
+  | { kind: "p"; text: string }
+  | { kind: "h"; text: string }
+  | { kind: "ul"; items: string[] };
+
+// 출처, 프로젝트, 마감은 줄 아래 표시와 링크로 이미 보여서 본문에서는 뺀다.
+const META = /^(출처|프로젝트|마감):/;
+
+/**
+ * 본문 전체를 문단, 굵은 줄 제목, 불릿 목록으로 나눈다.
+ * 첫 줄만 보여 주던 때는 회의용 할 일의 공유, 정할 것 불릿이 앱에서 안 보였다.
+ */
+export function detailOf(body: string): Block[] {
+  const blocks: Block[] = [];
+  let list: string[] | null = null;
+  for (const raw of body.split("\n")) {
+    const line = raw.trim();
+    if (!line || META.test(line) || line.startsWith("<!--")) {
+      list = null;
+      continue;
+    }
+    const bullet = line.match(/^[-*]\s+(.*)$/);
+    if (bullet) {
+      if (!list) {
+        list = [];
+        blocks.push({ kind: "ul", items: list });
+      }
+      list.push(bullet[1]);
+      continue;
+    }
+    list = null;
+    const heading = line.match(/^\*\*(.+)\*\*$/) ?? line.match(/^#{1,6}\s+(.*)$/);
+    blocks.push(heading ? { kind: "h", text: heading[1] } : { kind: "p", text: line });
+  }
+  return blocks;
+}
+
+/** 굵게, 링크, 맨 주소만 가른다. 나머지는 글자 그대로 */
+export type Span = { kind: "text" | "bold"; text: string } | { kind: "link"; text: string; href: string };
+
+const INLINE = /\*\*([^*]+)\*\*|\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)|(https?:\/\/[^\s)]+)/g;
+
+export function spansOf(text: string): Span[] {
+  const out: Span[] = [];
+  let last = 0;
+  for (const m of text.matchAll(INLINE)) {
+    const at = m.index ?? 0;
+    if (at > last) out.push({ kind: "text", text: text.slice(last, at) });
+    if (m[1] !== undefined) out.push({ kind: "bold", text: m[1] });
+    else if (m[2] !== undefined) out.push({ kind: "link", text: m[2], href: m[3] });
+    else out.push({ kind: "link", text: m[4], href: m[4] });
+    last = at + m[0].length;
+  }
+  if (last < text.length) out.push({ kind: "text", text: text.slice(last) });
+  return out;
+}

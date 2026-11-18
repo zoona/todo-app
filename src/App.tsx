@@ -46,6 +46,9 @@ import {
   shortTitle,
   splitRecurring,
   summaryOf,
+  detailOf,
+  spansOf,
+  type Block,
   type RecurringGroup,
 } from "./groups";
 import { UNSORTED, type HubFile, type Priority, type Todo } from "./types";
@@ -965,7 +968,7 @@ function Row({
   const state = dueState(todo.due, today);
   const origin = readOrigin(todo.origin);
   const projectTitle = hub?.projects.find((p) => p.slug === todo.project)?.title;
-  const summary = open ? summaryOf(todo.body) : "";
+  const detail = open ? detailOf(todo.body) : [];
 
   async function run(fn: () => Promise<void>) {
     setBusy(true);
@@ -1015,7 +1018,7 @@ function Row({
 
         {open && (
           <div className="detail">
-            {summary && <p className="summary">{summary}</p>}
+            {detail.length > 0 && <BodyText blocks={detail} />}
             <div className="tools">
               <label>
                 <span>우선순위</span>
@@ -1619,5 +1622,50 @@ function DoneRow({ entry, onReopened }: { entry: DoneEntry; onReopened: () => vo
           ))}
       </div>
     </div>
+  );
+}
+
+/** 펼친 할 일의 본문. 마크다운 중 굵게, 링크, 불릿만 그린다 */
+function BodyText({ blocks }: { blocks: Block[] }) {
+  return (
+    <div className="body-text">
+      {blocks.map((b, i) =>
+        b.kind === "ul" ? (
+          <ul key={i}>
+            {b.items.map((t, j) => (
+              <li key={j}>
+                <Inline text={t} />
+              </li>
+            ))}
+          </ul>
+        ) : b.kind === "h" ? (
+          <p key={i} className="body-head">
+            <Inline text={b.text} />
+          </p>
+        ) : (
+          <p key={i}>
+            <Inline text={b.text} />
+          </p>
+        ),
+      )}
+    </div>
+  );
+}
+
+function Inline({ text }: { text: string }) {
+  return (
+    <>
+      {spansOf(text).map((s, i) =>
+        s.kind === "bold" ? (
+          <strong key={i}>{s.text}</strong>
+        ) : s.kind === "link" ? (
+          <a key={i} href={s.href} target="_blank" rel="noreferrer">
+            {s.text}
+          </a>
+        ) : (
+          <span key={i}>{s.text}</span>
+        ),
+      )}
+    </>
   );
 }

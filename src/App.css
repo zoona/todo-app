@@ -1103,6 +1103,32 @@ details.done {
   color: var(--dim);
 }
 
+.body-text {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--dim);
+  overflow-wrap: anywhere;
+}
+.body-text p,
+.body-text ul {
+  margin: 0 0 6px;
+}
+.body-text ul {
+  padding-left: 18px;
+}
+.body-text li + li {
+  margin-top: 2px;
+}
+.body-text .body-head {
+  margin-top: 8px;
+  font-weight: 600;
+  color: var(--text);
+}
+.body-text a {
+  color: inherit;
+  text-decoration: underline;
+}
+
 .tools {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
